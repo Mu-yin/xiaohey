@@ -1,0 +1,9 @@
+node_modules/
+.next/
+out/
+.DS_Store
+*.log
+.env*
+!.env.example
+muyin-blog/
+墨痕博客-建站指令.md
