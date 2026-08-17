@@ -3,13 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build && node scripts/prepare-dist.mjs",
-    "start": "next start"
+    "dev": "vinext dev",
+    "build": "vinext build && node scripts/prepare-dist.mjs",
+    "start": "vinext start"
   },
   "dependencies": {
+    "@vitejs/plugin-react": "^6.0.5",
+    "@vitejs/plugin-rsc": "^0.5.34",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "react-server-dom-webpack": "^19.2.8",
+    "vinext": "^1.0.0-beta.6",
+    "vite": "^8.2.1"
   }
 }
