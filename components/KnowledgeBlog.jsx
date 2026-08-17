@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Giscus from "@giscus/react";
 import { entries, filters, notes } from "@/data/content";
 
 const iconPaths = {
@@ -109,7 +110,7 @@ function EntryCard({ entry, saved, onSave, onOpen }) {
   );
 }
 
-function DetailDrawer({ entry, saved, onSave, onClose, onToast }) {
+function DetailDrawer({ entry, saved, onSave, onClose, onToast, theme }) {
   if (!entry) return null;
 
   const copyCitation = async () => {
@@ -143,7 +144,7 @@ function DetailDrawer({ entry, saved, onSave, onClose, onToast }) {
         <header className="drawer-actions">
           <span>{entry.index} · {entry.type}</span>
           <div>
-            <button onClick={() => onSave(entry.id)} className={saved ? "is-saved" : ""} title="收藏"><Icon name="bookmark" filled={saved} /></button>
+            <button onClick={() => onSave(entry.id)} className={saved ? "is-saved" : ""} title="本机收藏"><Icon name="bookmark" filled={saved} /></button>
             <button onClick={shareEntry} title="分享"><Icon name="share" /></button>
             <button onClick={onClose} title="关闭"><Icon name="close" /></button>
           </div>
@@ -168,6 +169,28 @@ function DetailDrawer({ entry, saved, onSave, onClose, onToast }) {
             <button onClick={copyCitation}><Icon name="copy" size={17} />复制引用</button>
           </div>
           <button className="download-note" onClick={downloadNote}><Icon name="download" />下载 Markdown 笔记</button>
+          <section className="github-discussion">
+            <div className="discussion-heading">
+              <span>GITHUB DISCUSSION</span>
+              <h3>评论与讨论</h3>
+              <p>内容可以直接阅读；评论、回复和表态需要登录 GitHub 账号。</p>
+            </div>
+            <Giscus
+              repo="Mu-yin/Muyin"
+              repoId="R_kgDOS-Vedg"
+              category="General"
+              categoryId="DIC_kwDOS-Veds4C_auY"
+              mapping="specific"
+              term={`xiaohey:${entry.id}`}
+              strict="1"
+              reactionsEnabled="1"
+              emitMetadata="0"
+              inputPosition="top"
+              theme={theme === "dark" ? "dark" : "light"}
+              lang="zh-CN"
+              loading="lazy"
+            />
+          </section>
         </div>
       </article>
     </div>
@@ -378,7 +401,7 @@ export default function KnowledgeBlog() {
       </footer>
 
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} onSelect={setSelected} />
-      <DetailDrawer entry={selected} saved={selected ? saved.has(selected.id) : false} onSave={toggleSave} onClose={() => setSelected(null)} onToast={notify} />
+      <DetailDrawer entry={selected} saved={selected ? saved.has(selected.id) : false} onSave={toggleSave} onClose={() => setSelected(null)} onToast={notify} theme={theme} />
       {toast && <div className="toast" role="status"><Icon name="check" size={17} />{toast}</div>}
     </div>
   );

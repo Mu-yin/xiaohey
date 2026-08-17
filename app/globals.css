@@ -247,6 +247,11 @@ main { width: 100%; }
 .citation-box button, .download-note { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .citation-box button { padding: 6px 0; border: 0; border-bottom: 1px solid var(--ink); background: transparent; font-size: 10px; }
 .download-note { width: 100%; justify-content: center; margin-top: 15px; padding: 14px; border: 0; color: #fff; background: #173f35; font-size: 11px; }
+.github-discussion { margin-top: 58px; padding-top: 35px; border-top: 1px solid var(--line); }
+.discussion-heading { margin-bottom: 24px; }
+.discussion-heading > span { color: var(--red); font-size: 9px; letter-spacing: .16em; }
+.discussion-heading h3 { margin: 9px 0 7px; font-family: var(--serif); font-size: 23px; }
+.discussion-heading p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.7; }
 .toast { position: fixed; z-index: 800; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 9px; padding: 13px 17px; color: #fff; background: #173f35; box-shadow: 0 12px 40px rgba(0,0,0,.2); font-size: 11px; animation: toast-in .2s ease both; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(10px); } }
 
