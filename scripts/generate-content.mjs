@@ -10,7 +10,7 @@ function parsePost(source, fileName) {
   const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
   if (!match) throw new Error(`${fileName}: 缺少 JSON 文章头信息`);
   const meta = JSON.parse(match[1]);
-  const body = match[2].trim();
+  const body = match[2].replace(/\r\n/g, "\n").trim();
   const sections = body
     .split(/^##\s+/m)
     .filter(Boolean)

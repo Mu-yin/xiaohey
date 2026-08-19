@@ -5,6 +5,7 @@ import Giscus from "@giscus/react";
 import { entries as allEntries, filters, notes, siteConfig } from "@/data/content";
 
 const entries = allEntries.filter((entry) => entry.status === "published");
+const articleUrl = (entry) => `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/article/${entry.id}/`;
 const assetUrl = (value = "") => {
   if (!value || /^https?:\/\//.test(value)) return value;
   const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -126,19 +127,8 @@ function DetailDrawer({ entry, saved, onSave, onClose, onToast, theme }) {
     onToast("引用格式已复制");
   };
 
-  const downloadNote = () => {
-    const markdown = [`# ${entry.title}`, "", `> ${entry.takeaway}`, "", entry.abstract, "", ...entry.sections.flatMap((section) => [`## ${section.title}`, "", section.body, ""]), `引用：${entry.citation}`].join("\n");
-    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${entry.id}.md`;
-    link.click();
-    URL.revokeObjectURL(url);
-    onToast("Markdown 笔记已下载");
-  };
-
   const shareEntry = async () => {
-    const shareData = { title: entry.title, text: entry.abstract, url: window.location.href.split("#")[0] + `#${entry.id}` };
+    const shareData = { title: entry.title, text: entry.abstract, url: `${window.location.origin}${articleUrl(entry)}` };
     if (navigator.share) await navigator.share(shareData);
     else {
       await navigator.clipboard?.writeText(shareData.url);
@@ -152,6 +142,7 @@ function DetailDrawer({ entry, saved, onSave, onClose, onToast, theme }) {
         <header className="drawer-actions">
           <span>{entry.index} · {entry.type}</span>
           <div>
+            <a className="drawer-full-link" href={articleUrl(entry)} target="_blank" rel="noreferrer">阅读全文 ↗</a>
             <button onClick={() => onSave(entry.id)} className={saved ? "is-saved" : ""} title="本机收藏"><Icon name="bookmark" filled={saved} /></button>
             <button onClick={shareEntry} title="分享"><Icon name="share" /></button>
             <button onClick={onClose} title="关闭"><Icon name="close" /></button>
@@ -190,7 +181,7 @@ function DetailDrawer({ entry, saved, onSave, onClose, onToast, theme }) {
             <p>{entry.citation}</p>
             <button onClick={copyCitation}><Icon name="copy" size={17} />复制引用</button>
           </div>
-          <button className="download-note" onClick={downloadNote}><Icon name="download" />下载 Markdown 笔记</button>
+          <a className="download-note" href={articleUrl(entry)} target="_blank" rel="noreferrer"><Icon name="arrow" />在新页面阅读全文与下载</a>
           <section className="github-discussion">
             <div className="discussion-heading">
               <span>GITHUB DISCUSSION</span>
@@ -352,7 +343,7 @@ export default function KnowledgeBlog() {
               <blockquote>{featured.takeaway}</blockquote>
               <div className="feature-foot">
                 <div>{featured.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-                <button onClick={() => setSelected(featured)}>阅读全文 <Icon name="arrow" size={18} /></button>
+                <button onClick={() => setSelected(featured)}>快速预览 <Icon name="arrow" size={18} /></button>
               </div>
             </div>
           </article>

@@ -231,6 +231,8 @@ main { width: 100%; }
 @keyframes drawer-in { from { transform: translateX(100%); } }
 .drawer-actions { position: sticky; z-index: 4; top: 0; height: 63px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter: blur(15px); color: var(--muted); font-size: 9px; letter-spacing: .13em; }
 .drawer-actions > div { display: flex; gap: 7px; }
+.drawer-actions .drawer-full-link { height: 34px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--pine); font-size: 9px; letter-spacing: .04em; }
+.drawer-actions .drawer-full-link:hover { color: var(--red); border-color: var(--red); }
 .drawer-actions button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: transparent; cursor: pointer; }
 .drawer-actions button:hover, .drawer-actions button.is-saved { color: var(--red); border-color: var(--red); }
 .detail-drawer > .cover { min-height: 285px; height: 285px; }
