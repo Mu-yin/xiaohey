@@ -2,7 +2,7 @@
 export const siteConfig = {
   "brand": "xiaohey",
   "brandTagline": "STUDY · RESEARCH · NOTES",
-  "heroEyebrow": "PERSONAL KNOWLEDGE GARDEN · 2026",
+  "heroEyebrow": "PERSONAL KNOWLEDGE GARDEN · 2026.8",
   "heroTitle": "让知识被看见，",
   "heroEmphasis": "让思考有迹可循。",
   "heroDescription": "这里存放我的学习资料、论文精读与未完成的思考。比起收集更多，我更在意知识如何连接、被使用，并最终长成自己的理解。",
