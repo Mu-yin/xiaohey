@@ -1,0 +1,23 @@
+{
+  "brand": "xiaohey",
+  "brandTagline": "STUDY · RESEARCH · NOTES",
+  "heroEyebrow": "PERSONAL KNOWLEDGE GARDEN · 2026",
+  "heroTitle": "让知识被看见，",
+  "heroEmphasis": "让思考有迹可循。",
+  "heroDescription": "这里存放我的学习资料、论文精读与未完成的思考。比起收集更多，我更在意知识如何连接、被使用，并最终长成自己的理解。",
+  "heroPrimaryAction": "浏览知识库",
+  "heroSecondaryAction": "从关键词开始搜索",
+  "visualTitle": "知识不是\n一座仓库",
+  "visualNote": "小河的\n学习档案",
+  "aboutTitle": "你好，我是 xiaohey。",
+  "aboutParagraphs": [
+    "一个持续学习、偶尔写作的人。我相信理解来自反复表达，也相信公开记录能让漫长的学习过程变得可见。",
+    "这个博客不追逐日更。它更像一间开放书房：论文、课程、书籍与生活经验在这里相遇，慢慢形成一套属于自己的坐标。"
+  ],
+  "principles": ["用自己的话重写", "给观点寻找连接", "让笔记走向作品"],
+  "newsletterTitle": "把近期值得读的内容，\n偶尔寄给你。",
+  "newsletterDescription": "低频发送，不制造信息噪音。随时可以退订。",
+  "footerQuote": "学习不是抵达答案，\n而是逐渐学会提出更好的问题。",
+  "githubUrl": "https://github.com/Mu-yin",
+  "featuredPostId": "rl-grounded-generation"
+}
