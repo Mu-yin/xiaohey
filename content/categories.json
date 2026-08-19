@@ -1,0 +1,8 @@
+[
+  { "key": "paper", "label": "论文精读", "accent": "green", "visible": true },
+  { "key": "course", "label": "课程笔记", "accent": "navy", "visible": true },
+  { "key": "method", "label": "学习方法", "accent": "terracotta", "visible": true },
+  { "key": "reading", "label": "读书札记", "accent": "ochre", "visible": true },
+  { "key": "resource", "label": "资料工具", "accent": "slate", "visible": true },
+  { "key": "essay", "label": "随笔", "accent": "plum", "visible": true }
+]

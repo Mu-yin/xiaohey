@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Giscus from "@giscus/react";
-import { entries, filters, notes } from "@/data/content";
+import { entries as allEntries, filters, notes, siteConfig } from "@/data/content";
+
+const entries = allEntries.filter((entry) => entry.status === "published");
+const assetUrl = (value = "") => {
+  if (!value || /^https?:\/\//.test(value)) return value;
+  const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  return `${base}/${value.replace(/^\.?\//, "")}`;
+};
 
 const iconPaths = {
   search: <><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.2 4.2"/></>,
@@ -30,7 +37,7 @@ function Logo({ compact = false }) {
   return (
     <a className="brand" href="#top" aria-label="xiaohey 首页">
       <span className="brand-mark" aria-hidden="true"><span>小</span><i /></span>
-      {!compact && <span className="brand-copy"><strong>xiaohey</strong><small>STUDY · RESEARCH · NOTES</small></span>}
+      {!compact && <span className="brand-copy"><strong>{siteConfig.brand}</strong><small>{siteConfig.brandTagline}</small></span>}
     </a>
   );
 }
@@ -38,6 +45,7 @@ function Logo({ compact = false }) {
 function Cover({ entry, featured = false }) {
   return (
     <div className={`cover cover-${entry.accent} ${featured ? "cover-featured" : ""}`} aria-hidden="true">
+      {entry.coverImage && <img className="cover-image" src={assetUrl(entry.coverImage)} alt="" />}
       <span className="cover-grid" />
       <span className="cover-index">{entry.index}</span>
       <span className="cover-label">{entry.eyebrow}</span>
@@ -160,9 +168,23 @@ function DetailDrawer({ entry, saved, onSave, onClose, onToast, theme }) {
             <section key={section.title}>
               <span className="section-number">0{index + 1}</span>
               <h3>{section.title}</h3>
-              <p>{section.body}</p>
+              <p className="article-body">{section.body}</p>
             </section>
           ))}
+          {!!entry.attachments?.length && (
+            <section className="article-attachments">
+              <span className="section-number">附</span>
+              <h3>相关资料与附件</h3>
+              <div className="attachment-list">
+                {entry.attachments.map((attachment) => (
+                  <a key={attachment.path} href={assetUrl(attachment.path)} target="_blank" rel="noreferrer" download={attachment.download !== false}>
+                    <Icon name="download" size={18} />
+                    <span><strong>{attachment.name}</strong><small>{attachment.description || "打开或下载资料"}</small></span>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
           <div className="citation-box">
             <span>推荐引用</span>
             <p>{entry.citation}</p>
@@ -208,7 +230,7 @@ export default function KnowledgeBlog() {
   const [progress, setProgress] = useState(0);
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
-  const featured = entries[0];
+  const featured = entries.find((entry) => entry.id === siteConfig.featuredPostId) || entries.find((entry) => entry.featured) || entries[0];
   const visibleEntries = filter === "all" ? entries : entries.filter((entry) => entry.typeKey === filter);
 
   useEffect(() => {
@@ -290,29 +312,29 @@ export default function KnowledgeBlog() {
       <main>
         <section className="hero-section" aria-labelledby="hero-title">
           <div className="hero-copy">
-            <div className="eyebrow"><span /> PERSONAL KNOWLEDGE GARDEN · 2026</div>
-            <h1 id="hero-title">让知识被看见，<br /><em>让思考有迹可循。</em></h1>
-            <p>这里存放我的学习资料、论文精读与未完成的思考。比起收集更多，我更在意知识如何连接、被使用，并最终长成自己的理解。</p>
+            <div className="eyebrow"><span /> {siteConfig.heroEyebrow}</div>
+            <h1 id="hero-title">{siteConfig.heroTitle}<br /><em>{siteConfig.heroEmphasis}</em></h1>
+            <p>{siteConfig.heroDescription}</p>
             <div className="hero-actions">
-              <a className="primary-button" href="#library">浏览知识库 <Icon name="arrow" size={18} /></a>
-              <button className="text-button" onClick={() => setSearchOpen(true)}>从关键词开始搜索</button>
+              <a className="primary-button" href="#library">{siteConfig.heroPrimaryAction} <Icon name="arrow" size={18} /></a>
+              <button className="text-button" onClick={() => setSearchOpen(true)}>{siteConfig.heroSecondaryAction}</button>
             </div>
             <dl className="hero-stats">
-              <div><dt>48</dt><dd>篇学习笔记</dd></div>
-              <div><dt>16</dt><dd>篇论文精读</dd></div>
-              <div><dt>09</dt><dd>个长期主题</dd></div>
+              <div><dt>{String(entries.length).padStart(2, "0")}</dt><dd>篇公开内容</dd></div>
+              <div><dt>{String(entries.filter((entry) => entry.typeKey === "paper").length).padStart(2, "0")}</dt><dd>篇论文精读</dd></div>
+              <div><dt>{String(filters.length - 1).padStart(2, "0")}</dt><dd>个内容分类</dd></div>
             </dl>
           </div>
           <div className="hero-visual" aria-hidden="true">
             <div className="paper paper-back"><span>FIELD NOTES / 026</span></div>
             <div className="paper paper-main">
               <div className="paper-head"><span>XH—ARCHIVE</span><span>08 / 2026</span></div>
-              <div className="paper-title">知识不是<br />一座仓库</div>
+              <div className="paper-title">{siteConfig.visualTitle.split("\n").map((line) => <span key={line}>{line}<br /></span>)}</div>
               <div className="paper-circle">知</div>
               <p>It is a garden<br />that asks for<br />patient tending.</p>
               <div className="paper-foot"><span>LEARN</span><span>LINK</span><span>CREATE</span></div>
             </div>
-            <span className="visual-note">小河的<br />学习档案</span>
+            <span className="visual-note">{siteConfig.visualNote.split("\n").map((line) => <span key={line}>{line}<br /></span>)}</span>
           </div>
         </section>
 
@@ -358,7 +380,7 @@ export default function KnowledgeBlog() {
           <div className="notes-grid">
             {notes.map((note, index) => (
               <article key={note.date}>
-                <header><time>2026.{note.date}</time><span>0{index + 1}</span></header>
+                <header><time>{note.date}</time><span>0{index + 1}</span></header>
                 <p>“{note.text}”</p>
                 <footer><span>#{note.tag}</span><i /></footer>
               </article>
@@ -371,32 +393,31 @@ export default function KnowledgeBlog() {
             <div className="about-mark"><span>小</span><i /></div>
             <div className="about-copy">
               <span className="section-index">04 · ABOUT</span>
-              <h2>你好，我是 xiaohey。</h2>
-              <p>一个持续学习、偶尔写作的人。我相信理解来自反复表达，也相信公开记录能让漫长的学习过程变得可见。</p>
-              <p>这个博客不追逐日更。它更像一间开放书房：论文、课程、书籍与生活经验在这里相遇，慢慢形成一套属于自己的坐标。</p>
-              <div className="about-links"><a href="https://github.com/Mu-yin" target="_blank" rel="noreferrer">GitHub 主页</a><a href="#library">浏览全部内容</a></div>
+              <h2>{siteConfig.aboutTitle}</h2>
+              {siteConfig.aboutParagraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+              <div className="about-links"><a href={siteConfig.githubUrl} target="_blank" rel="noreferrer">GitHub 主页</a><a href="#library">浏览全部内容</a></div>
             </div>
             <aside className="principles">
               <span>整理原则</span>
-              <ol><li><b>01</b> 用自己的话重写</li><li><b>02</b> 给观点寻找连接</li><li><b>03</b> 让笔记走向作品</li></ol>
+              <ol>{siteConfig.principles.map((item, index) => <li key={item}><b>0{index + 1}</b> {item}</li>)}</ol>
             </aside>
           </div>
         </section>
 
         <section className="newsletter-section">
-          <div><span>LETTER FROM XIAOHEY</span><h2>把近期值得读的内容，<br />偶尔寄给你。</h2></div>
+          <div><span>LETTER FROM XIAOHEY</span><h2>{siteConfig.newsletterTitle.split("\n").map((line) => <span key={line}>{line}<br /></span>)}</h2></div>
           {subscribed ? <div className="subscribed"><Icon name="check" size={28} /><strong>订阅成功</strong><span>下一封来信见。</span></div> : (
             <form onSubmit={subscribe}>
               <label htmlFor="newsletter-email">电子邮箱</label>
               <div><input id="newsletter-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" /><button type="submit">订阅来信 <Icon name="arrow" size={18} /></button></div>
-              <small>低频发送，不制造信息噪音。随时可以退订。</small>
+              <small>{siteConfig.newsletterDescription}</small>
             </form>
           )}
         </section>
       </main>
 
       <footer className="site-footer">
-        <div className="footer-top"><Logo /><p>学习不是抵达答案，<br />而是逐渐学会提出更好的问题。</p><a href="#top">回到顶部 ↑</a></div>
+        <div className="footer-top"><Logo /><p>{siteConfig.footerQuote.split("\n").map((line) => <span key={line}>{line}<br /></span>)}</p><a href="#top">回到顶部 ↑</a></div>
         <div className="footer-bottom"><span>© 2026 xiaohey. Built for slow learning.</span><nav><a href="#library">知识库</a><a href="#about">关于</a><button onClick={() => setSearchOpen(true)}>搜索</button></nav></div>
       </footer>
 
