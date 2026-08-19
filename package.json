@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build && node scripts/prepare-dist.mjs",
+    "build:pages": "node scripts/build-pages.mjs",
     "start": "vinext start"
   },
   "dependencies": {
