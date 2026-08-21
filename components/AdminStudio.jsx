@@ -13,6 +13,7 @@ const safeArticleId = () => `article-${Date.now().toString(36)}-${Math.random().
 const safeAssetFolder = () => `uploads/assets/file-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 const humanSize = (bytes = 0) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 const publicFilePath = (path = "") => `public/${path.replace(/^\/?public\//, "").replace(/^\/+/, "")}`;
+const defaultCitation = (title, date = "") => `xiaohey. (${date.match(/\d{4}/)?.[0] || new Date().getFullYear()}). ${title}. xiaohey 学习与研究博客.`;
 
 function normalizedAttachmentName(value, originalName = "") {
   const originalExtension = originalName.match(/\.[^.]+$/)?.[0] || "";
@@ -116,7 +117,7 @@ function postWithSmartDraft(post, draft) {
     level: draft.level,
     rawMarkdown: draft.rawMarkdown,
     sections: sectionsFromMarkdown(draft.rawMarkdown),
-    citation: `xiaohey. (${new Date().getFullYear()}). ${draft.title}. xiaohey 学习与研究博客.`,
+    citation: post.citation?.trim() && !post.citation.includes("未命名") ? post.citation : defaultCitation(draft.title, post.date),
   };
 }
 
@@ -249,6 +250,42 @@ export default function AdminStudio() {
     setDirty(true);
   };
 
+  const chooseCategory = (category) => updatePost({ typeKey: category.key, type: category.label, accent: category.accent });
+
+  const chooseFeaturedPost = () => {
+    if (!selected) return;
+    setSite((current) => ({ ...current, featuredPostId: selected.id }));
+    setPosts((current) => current.map((post) => ({ ...post, featured: post.id === selected.id })));
+    setDirty(true);
+    notify(`《${selected.title}》已设为首页本期精选`);
+  };
+
+  const addNote = () => {
+    setNotes((current) => [{ date: today(), text: "写下一条简短的想法。", tag: "新想法" }, ...current]);
+    setDirty(true);
+  };
+
+  const updateNote = (index, patch) => {
+    setNotes((current) => current.map((note, noteIndex) => noteIndex === index ? { ...note, ...patch } : note));
+    setDirty(true);
+  };
+
+  const removeNote = (index) => {
+    if (!confirm("确定删除这条随手记吗？发布前仍可刷新页面撤销。")) return;
+    setNotes((current) => current.filter((_, noteIndex) => noteIndex !== index));
+    setDirty(true);
+  };
+
+  const updateCategory = (index, patch) => {
+    const category = categories[index];
+    const nextCategory = { ...category, ...patch };
+    setCategories((current) => current.map((item, categoryIndex) => categoryIndex === index ? nextCategory : item));
+    if (patch.label || patch.accent) {
+      setPosts((current) => current.map((post) => post.typeKey === category.key ? { ...post, type: patch.label ?? post.type, accent: patch.accent ?? post.accent } : post));
+    }
+    setDirty(true);
+  };
+
   const addPost = () => {
     const post = emptyPost(categories, posts.length);
     setPosts((current) => [post, ...current]); setSelectedId(post.id); setTab("posts"); setDirty(true);
@@ -295,7 +332,7 @@ export default function AdminStudio() {
     if (!report) return;
     if (field === "category") updatePost({ typeKey: report.typeKey, type: report.type, accent: report.accent });
     else if (field === "rawMarkdown") updatePost({ rawMarkdown: report.rawMarkdown, sections: sectionsFromMarkdown(report.rawMarkdown) });
-    else if (field === "title") updatePost({ title: report.title, citation: `xiaohey. (${new Date().getFullYear()}). ${report.title}. xiaohey 学习与研究博客.` });
+    else if (field === "title") updatePost({ title: report.title });
     else updatePost({ [field]: report[field] });
     notify("已采用这条建议");
   };
@@ -506,6 +543,7 @@ export default function AdminStudio() {
         <a className="admin-brand" href={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/`}><span>小</span><div><strong>xiaohey</strong><small>EDITOR STUDIO</small></div></a>
         <nav>
           <button className={tab === "posts" ? "active" : ""} onClick={() => setTab("posts")}><Icon name="file" />内容管理</button>
+          <button className={tab === "notes" ? "active" : ""} onClick={() => setTab("notes")}><Icon name="sparkles" />随手记</button>
           <button className={tab === "site" ? "active" : ""} onClick={() => setTab("site")}><Icon name="settings" />页面文字</button>
           <button className={tab === "categories" ? "active" : ""} onClick={() => setTab("categories")}><Icon name="grid" />分类管理</button>
           <button className={tab === "media" ? "active" : ""} onClick={() => setTab("media")}><Icon name="upload" />媒体附件</button>
@@ -538,20 +576,25 @@ export default function AdminStudio() {
             {preview ? <article className="article-preview"><span>{selected.eyebrow}</span><h1>{selected.title}</h1><p className="preview-lead">{selected.abstract}</p><blockquote>{selected.takeaway}</blockquote><MarkdownContent basePath={process.env.NEXT_PUBLIC_BASE_PATH || ""}>{selected.rawMarkdown}</MarkdownContent></article> : <div className="editor-form">
               <SmartDraftPanel report={smartReport} analyzing={analyzing} focus={analysisFocus} onFocusChange={setAnalysisFocus} onAnalyze={analyzeSelectedPost} onApply={applySmartSuggestion} onApplyAll={applyAllSmartSuggestions} onChooseFile={() => fileInput.current?.click()} />
               <div className="form-row wide"><label>文章标题<input value={selected.title} onChange={(event) => updatePost({ title: event.target.value })} /></label></div>
-              <div className="form-grid"><label>分类<select value={selected.typeKey} onChange={(event) => { const category = categories.find((item) => item.key === event.target.value); updatePost({ typeKey: event.target.value, type: category?.label, accent: category?.accent }); }}><option value="">选择分类</option>{categories.map((category) => <option key={category.key} value={category.key}>{category.label}</option>)}</select></label><label>发布状态<select value={selected.status} onChange={(event) => updatePost({ status: event.target.value })}><option value="draft">草稿</option><option value="published">公开发布</option><option value="archived">归档隐藏</option></select></label><label>发布日期<input value={selected.date} onChange={(event) => updatePost({ date: event.target.value })} /></label><label>阅读时间<input value={selected.readTime} onChange={(event) => updatePost({ readTime: event.target.value })} /></label></div>
+              <section className="article-classification"><div><strong>文章分类</strong><small>“论文精读”等属于文章分类，会显示在知识库筛选栏；可在“分类管理”中改名和调整颜色。</small></div><div className="category-picker">{categories.map((category) => <button type="button" key={category.key} className={selected.typeKey === category.key ? `active accent-${category.accent}` : ""} onClick={() => chooseCategory(category)}>{category.label}{!category.visible && <small>已隐藏</small>}</button>)}</div></section>
+              <div className="form-grid"><label>发布状态<select value={selected.status} onChange={(event) => updatePost({ status: event.target.value })}><option value="draft">草稿</option><option value="published">公开发布</option><option value="archived">归档隐藏</option></select></label><label>阅读难度<input value={selected.level || ""} onChange={(event) => updatePost({ level: event.target.value })} placeholder="例如：入门、进阶、随想" /></label><label>发布日期<input value={selected.date} onChange={(event) => updatePost({ date: event.target.value })} /></label><label>阅读时间<input value={selected.readTime} onChange={(event) => updatePost({ readTime: event.target.value })} /></label></div>
+              <div className="featured-control"><div><strong>首页本期精选</strong><small>这里决定首页“本期精选”区域展示哪一篇文章，与“论文精读”分类相互独立。</small></div><button type="button" className={site.featuredPostId === selected.id ? "active" : ""} onClick={chooseFeaturedPost} disabled={site.featuredPostId === selected.id}>{site.featuredPostId === selected.id ? "当前精选" : "设为本期精选"}</button></div>
               <label>文章摘要<textarea rows="3" value={selected.abstract} onChange={(event) => updatePost({ abstract: event.target.value })} /></label>
               <label>核心观点<textarea rows="2" value={selected.takeaway} onChange={(event) => updatePost({ takeaway: event.target.value })} /></label>
               <div className="form-grid"><label>标签<input value={(selected.tags || []).join("，")} onChange={(event) => updatePost({ tags: event.target.value.split(/[，,]/).map((item) => item.trim()).filter(Boolean) })} placeholder="学习，论文，方法" /></label><label>眉题<input value={selected.eyebrow} onChange={(event) => updatePost({ eyebrow: event.target.value })} /></label></div>
+              <label>推荐引用<div className="citation-editor"><textarea rows="2" value={selected.citation || ""} onChange={(event) => updatePost({ citation: event.target.value })} /><button type="button" onClick={() => updatePost({ citation: defaultCitation(selected.title, selected.date) })}>按标题重新生成</button></div><small className="markdown-help">可以完全自由修改；智能分析和标题修改不会再覆盖你手写的引用。</small></label>
               <label>正文（支持完整 Markdown）<div className="markdown-editor-shell"><MarkdownToolbar onInsert={insertMarkdown} /><textarea ref={bodyEditor} className="body-editor" value={selected.rawMarkdown} onChange={(event) => updatePost({ rawMarkdown: event.target.value, sections: sectionsFromMarkdown(event.target.value) })} /></div><small className="markdown-help">支持 # 标题、*斜体*、**粗体**、列表、引用、链接、代码块、表格和任务清单；点击“预览”查看最终效果。</small></label>
               <div className={`drop-zone ${dragging ? "dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); importFiles(event.dataTransfer.files); }} onClick={() => fileInput.current?.click()}><Icon name="upload" /><strong>拖入图片、PDF或其他附件</strong><span>图片会成为封面，其他文件会加入文章下载区</span></div>
-              {!!selected.attachments?.length && <div className="editor-attachments">{selected.attachments.map((item) => <div key={item.path}><Icon name="file" /><span><strong>{item.name}</strong><small>{item.description}</small></span><span className="attachment-actions"><button type="button" onClick={() => renameAttachment(item)}>重命名</button><button type="button" onClick={() => updatePost({ attachments: selected.attachments.filter((attachment) => attachment.path !== item.path) })}>移除</button></span></div>)}</div>}
+              {!!selected.attachments?.length && <div className="editor-attachments">{selected.attachments.map((item) => <div key={item.path}><Icon name="file" /><span><strong>{item.name}</strong><input className="attachment-description" value={item.description || ""} onChange={(event) => updatePost({ attachments: selected.attachments.map((attachment) => attachment.path === item.path ? { ...attachment, description: event.target.value } : attachment) })} placeholder="附件说明" /></span><span className="attachment-actions"><button type="button" onClick={() => renameAttachment(item)}>重命名</button><button type="button" onClick={() => updatePost({ attachments: selected.attachments.filter((attachment) => attachment.path !== item.path) })}>移除</button></span></div>)}</div>}
             </div>}
           </section>}
         </div>}
 
+        {tab === "notes" && <section className="settings-page"><div className="settings-heading"><span>MARGINALIA</span><h1>随手记管理</h1><p>这里对应展示站首页的“随手记”卡片，不属于文章分类，也不需要创建完整文章。</p></div><button className="add-note" type="button" onClick={addNote}><Icon name="plus" />新增随手记</button><div className="note-editor-list">{notes.map((note, index) => <article key={`${index}-${note.date}`}><header><strong>随手记 {String(index + 1).padStart(2, "0")}</strong><button type="button" onClick={() => removeNote(index)}><Icon name="trash" />删除</button></header><div className="form-grid"><label>日期<input value={note.date} onChange={(event) => updateNote(index, { date: event.target.value })} /></label><label>标签<input value={note.tag} onChange={(event) => updateNote(index, { tag: event.target.value })} /></label></div><label>内容<textarea rows="3" value={note.text} onChange={(event) => updateNote(index, { text: event.target.value })} /></label></article>)}</div></section>}
+
         {tab === "site" && <section className="settings-page"><div className="settings-heading"><span>SITE COPY</span><h1>页面文字</h1><p>修改后可在发布前返回展示站核对整体效果。</p></div><div className="settings-card"><h2>首页首屏</h2><label>小标题<input value={site.heroEyebrow} onChange={(event) => { setSite({ ...site, heroEyebrow: event.target.value }); setDirty(true); }} /></label><div className="form-grid"><label>主标题<input value={site.heroTitle} onChange={(event) => { setSite({ ...site, heroTitle: event.target.value }); setDirty(true); }} /></label><label>强调标题<input value={site.heroEmphasis} onChange={(event) => { setSite({ ...site, heroEmphasis: event.target.value }); setDirty(true); }} /></label></div><label>介绍文字<textarea rows="4" value={site.heroDescription} onChange={(event) => { setSite({ ...site, heroDescription: event.target.value }); setDirty(true); }} /></label></div><div className="settings-card"><h2>关于我</h2><label>标题<input value={site.aboutTitle} onChange={(event) => { setSite({ ...site, aboutTitle: event.target.value }); setDirty(true); }} /></label>{site.aboutParagraphs.map((paragraph, index) => <label key={index}>第 {index + 1} 段<textarea rows="3" value={paragraph} onChange={(event) => { const values = [...site.aboutParagraphs]; values[index] = event.target.value; setSite({ ...site, aboutParagraphs: values }); setDirty(true); }} /></label>)}</div><div className="settings-card"><h2>页尾与订阅</h2><label>订阅标题<textarea rows="2" value={site.newsletterTitle} onChange={(event) => { setSite({ ...site, newsletterTitle: event.target.value }); setDirty(true); }} /></label><label>页尾句子<textarea rows="2" value={site.footerQuote} onChange={(event) => { setSite({ ...site, footerQuote: event.target.value }); setDirty(true); }} /></label></div></section>}
 
-        {tab === "categories" && <section className="settings-page"><div className="settings-heading"><span>TAXONOMY</span><h1>分类管理</h1><p>顺序会同步到展示站筛选栏。</p></div><div className="category-table">{categories.map((category, index) => <div key={category.key}><span className={`category-swatch accent-${category.accent}`} /><label>显示名称<input value={category.label} onChange={(event) => { const values = [...categories]; values[index] = { ...category, label: event.target.value }; setCategories(values); setDirty(true); }} /></label><label>英文标识<input value={category.key} disabled /></label><label>配色<select value={category.accent} onChange={(event) => { const values = [...categories]; values[index] = { ...category, accent: event.target.value }; setCategories(values); setDirty(true); }}>{ACCENTS.map((accent) => <option key={accent}>{accent}</option>)}</select></label><label className="visibility"><input type="checkbox" checked={category.visible} onChange={(event) => { const values = [...categories]; values[index] = { ...category, visible: event.target.checked }; setCategories(values); setDirty(true); }} />展示</label><button disabled={index === 0} onClick={() => { const values = [...categories]; [values[index - 1], values[index]] = [values[index], values[index - 1]]; setCategories(values); setDirty(true); }}>↑</button></div>)}</div><button className="add-category" onClick={() => { const key = `category-${Date.now()}`; setCategories([...categories, { key, label: "新分类", accent: "green", visible: true }]); setDirty(true); }}><Icon name="plus" />添加分类</button></section>}
+        {tab === "categories" && <section className="settings-page"><div className="settings-heading"><span>TAXONOMY</span><h1>分类管理</h1><p>这里修改“论文精读、课程笔记、随笔”等文章分类。改名或换色会自动同步到已使用该分类的文章；“随手记”请使用左侧独立入口。</p></div><div className="category-table">{categories.map((category, index) => <div key={category.key}><span className={`category-swatch accent-${category.accent}`} /><label>显示名称<input value={category.label} onChange={(event) => updateCategory(index, { label: event.target.value })} /></label><label>英文标识<input value={category.key} disabled /></label><label>配色<select value={category.accent} onChange={(event) => updateCategory(index, { accent: event.target.value })}>{ACCENTS.map((accent) => <option key={accent}>{accent}</option>)}</select></label><label className="visibility"><input type="checkbox" checked={category.visible} onChange={(event) => updateCategory(index, { visible: event.target.checked })} />展示</label><button disabled={index === 0} onClick={() => { const values = [...categories]; [values[index - 1], values[index]] = [values[index], values[index - 1]]; setCategories(values); setDirty(true); }}>↑</button></div>)}</div><button className="add-category" onClick={() => { const key = `category-${Date.now()}`; setCategories([...categories, { key, label: "新分类", accent: "green", visible: true }]); setDirty(true); }}><Icon name="plus" />添加分类</button></section>}
 
         {tab === "media" && <section className="settings-page"><div className="settings-heading"><span>MEDIA LIBRARY</span><h1>媒体与附件</h1><p>待发布文件会随文章一起保存到 GitHub。</p></div><div className={`media-drop ${dragging ? "dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); importFiles(event.dataTransfer.files); }} onClick={() => fileInput.current?.click()}><Icon name="upload" /><h2>把电脑里的文件拖到这里</h2><p>支持 Word、Markdown、TXT、PDF、图片及普通附件</p><button>选择文件</button></div><div className="pending-grid">{pendingFiles.map((file) => <article key={file.path}><Icon name="file" /><div><strong>{file.name}</strong><small>{humanSize(file.size)}</small></div><span>等待发布</span></article>)}</div></section>}
       </main>

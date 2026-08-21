@@ -283,7 +283,7 @@ export default function KnowledgeBlog() {
           <Logo />
           <nav className={`main-nav ${menuOpen ? "is-open" : ""}`} aria-label="主导航">
             <a href="#library" onClick={() => setMenuOpen(false)}>知识库</a>
-            <a href="#papers" onClick={() => setMenuOpen(false)}>论文精读</a>
+            <a href="#papers" onClick={() => setMenuOpen(false)}>本期精选</a>
             <a href="#notes" onClick={() => setMenuOpen(false)}>随手记</a>
             <a href="#about" onClick={() => setMenuOpen(false)}>关于</a>
           </nav>
