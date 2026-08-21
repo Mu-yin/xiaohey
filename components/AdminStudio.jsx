@@ -10,6 +10,7 @@ const deepCopy = (value) => JSON.parse(JSON.stringify(value));
 const today = () => new Date().toISOString().slice(0, 10).replaceAll("-", ".");
 const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-").replace(/^-|-$/g, "") || `note-${Date.now()}`;
 const safeArticleId = () => `article-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+const safeAssetFolder = () => `uploads/assets/file-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 const humanSize = (bytes = 0) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 const publicFilePath = (path = "") => `public/${path.replace(/^\/?public\//, "").replace(/^\/+/, "")}`;
 
@@ -382,7 +383,9 @@ export default function AdminStudio() {
     if (requested === null) return;
     const nextName = normalizedAttachmentName(requested, attachment.name);
     if (!nextName) { notify("请输入有效的附件名称"); return; }
-    const directory = attachment.path.replace(/\\/g, "/").split("/").slice(0, -1).join("/");
+    const currentPath = attachment.path.replace(/\\/g, "/");
+    const existingSafeDirectory = currentPath.match(/^(uploads\/assets\/file-[^/]+)\//)?.[1];
+    const directory = existingSafeDirectory || safeAssetFolder();
     const nextPath = `${directory}/${nextName}`;
     if (selected.attachments.some((item) => item.path !== attachment.path && item.path.toLowerCase() === nextPath.toLowerCase())) {
       notify("这个名称已被当前文章的其他附件使用"); return;

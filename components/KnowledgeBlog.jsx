@@ -6,7 +6,7 @@ import { entries as allEntries, filters, notes, siteConfig } from "@/data/conten
 import MarkdownContent from "@/components/MarkdownContent";
 
 const entries = allEntries.filter((entry) => entry.status === "published");
-const articleUrl = (entry) => `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/article/${encodeURIComponent(entry.id)}/`;
+const articleUrl = (entry) => `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/read/?id=${encodeURIComponent(entry.id)}`;
 const assetUrl = (value = "") => {
   if (!value || /^https?:\/\//.test(value)) return value;
   const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
