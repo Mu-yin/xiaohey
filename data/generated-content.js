@@ -105,8 +105,8 @@ export const entries = [
     "coverImage": "",
     "attachments": [
       {
-        "name": "3250106098-杨鑫飞--自动化导论.pdf",
-        "path": "uploads/3250106098-杨鑫飞-自动化导论/3250106098-杨鑫飞--自动化导论.pdf",
+        "name": "无人系统智能化与自主化技术发展现状与前景分析.pdf",
+        "path": "uploads/assets/file-mt2n8fnw-6qsyb/无人系统智能化与自主化技术发展现状与前景分析.pdf",
         "description": "PDF · 294 KB"
       }
     ],
