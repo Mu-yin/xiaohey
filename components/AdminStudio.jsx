@@ -3,12 +3,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { categories as initialCategories, entries as initialEntries, notes as initialNotes, siteConfig as initialSite } from "@/data/content";
 import { buildSmartDraft } from "@/lib/smart-draft.mjs";
+import MarkdownContent from "@/components/MarkdownContent";
 
 const ACCENTS = ["green", "terracotta", "navy", "ochre", "slate", "plum"];
 const deepCopy = (value) => JSON.parse(JSON.stringify(value));
 const today = () => new Date().toISOString().slice(0, 10).replaceAll("-", ".");
 const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-").replace(/^-|-$/g, "") || `note-${Date.now()}`;
+const safeArticleId = () => `article-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+const safeAssetFolder = () => `uploads/assets/file-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 const humanSize = (bytes = 0) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+const publicFilePath = (path = "") => `public/${path.replace(/^\/?public\//, "").replace(/^\/+/, "")}`;
+
+function normalizedAttachmentName(value, originalName = "") {
+  const originalExtension = originalName.match(/\.[^.]+$/)?.[0] || "";
+  let name = value.trim().replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-").replace(/^\.+|\.+$/g, "");
+  if (!name) return "";
+  if (originalExtension && !name.toLowerCase().endsWith(originalExtension.toLowerCase())) name += originalExtension;
+  return name;
+}
 
 async function githubApi(path, token, init = {}) {
   const result = await fetch(`https://api.github.com${path}`, {
@@ -39,10 +51,17 @@ async function verifyGitHubToken(token, allowedLogin) {
 }
 
 function sectionsFromMarkdown(markdown = "") {
-  return markdown.split(/^##\s+/m).filter(Boolean).map((chunk, index) => {
-    const [heading, ...rest] = chunk.split(/\r?\n/);
-    return { title: heading.trim() || `第 ${index + 1} 节`, body: rest.join("\n").trim() };
-  });
+  const sections = [];
+  let current = { title: "正文", lines: [] };
+  for (const line of markdown.replace(/\r/g, "").split("\n")) {
+    const heading = line.match(/^#{1,3}\s+(.+)$/);
+    if (heading) {
+      if (current.lines.join("\n").trim()) sections.push({ title: current.title, body: current.lines.join("\n").trim() });
+      current = { title: heading[1].replace(/[*_`~]/g, "").trim(), lines: [] };
+    } else current.lines.push(line);
+  }
+  if (current.lines.join("\n").trim() || !sections.length) sections.push({ title: current.title, body: current.lines.join("\n").trim() });
+  return sections;
 }
 
 function serializePost(post) {
@@ -79,9 +98,8 @@ function emptyPost(categories, count) {
   };
 }
 
-function postWithSmartDraft(post, draft, existingPosts = []) {
-  const baseId = slugify(draft.title);
-  const id = existingPosts.some((item) => item.id === baseId && item.id !== post.id) ? `${baseId}-${Date.now().toString(36).slice(-4)}` : baseId;
+function postWithSmartDraft(post, draft) {
+  const id = post.id || safeArticleId();
   return {
     ...post,
     id,
@@ -118,7 +136,7 @@ function Icon({ name }) {
   return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
-function SmartDraftPanel({ report, analyzing, onAnalyze, onApply, onApplyAll, onChooseFile }) {
+function SmartDraftPanel({ report, analyzing, focus, onFocusChange, onAnalyze, onApply, onApplyAll, onChooseFile }) {
   const suggestions = report ? [
     { key: "title", label: "标题", value: report.title },
     { key: "category", label: "分类", value: report.type },
@@ -129,14 +147,24 @@ function SmartDraftPanel({ report, analyzing, onAnalyze, onApply, onApplyAll, on
   ] : [];
   return <section className={`smart-draft-panel ${report ? "has-report" : ""}`}>
     <header><div className="smart-draft-title"><span><Icon name="sparkles" /></span><div><em>SMART DRAFT</em><h2>智能建稿助手</h2></div></div><span className="smart-mode">本机安全分析</span></header>
+    <label className="smart-focus">分析重点（可选）<input value={focus} onChange={(event) => onFocusChange(event.target.value)} placeholder="例如：重点提炼作者的研究结论、方法局限和实践建议" /></label>
     {!report ? <div className="smart-empty"><p>上传 Word、PDF、Markdown 或 TXT 后，会自动生成标题、分类、摘要、核心观点、标签、眉题和正文结构。</p><div><button type="button" onClick={onChooseFile}><Icon name="upload" />上传文件并自动建稿</button><button type="button" className="secondary" onClick={onAnalyze} disabled={analyzing}>{analyzing ? "正在分析…" : "分析当前正文"}</button></div></div> : <>
       <div className="smart-report-meta"><div><strong>{report.sourceName}</strong><span>{report.sourceLength.toLocaleString()} 字 · {new Date(report.generatedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</span></div><button type="button" onClick={onAnalyze} disabled={analyzing}>{analyzing ? "正在分析…" : "重新分析正文"}</button></div>
       <div className="smart-signals">{report.signals.map((signal) => <span key={signal}>✓ {signal}</span>)}</div>
+      {!!report.evidence?.length && <details className="smart-evidence"><summary>查看摘要生成依据</summary>{report.evidence.map((sentence) => <p key={sentence}>“{sentence}”</p>)}</details>}
       <div className="smart-suggestion-grid">{suggestions.map((item) => <article key={item.key}><span>{item.label}</span><p>{item.value}</p><button type="button" onClick={() => onApply(item.key)}>采用</button></article>)}</div>
       <div className="smart-draft-footer"><p>建议已经自动填入新文章，你可以继续修改；“采用全部”会覆盖当前表单内容。</p><div><button type="button" className="secondary" onClick={() => onApply("rawMarkdown")}>采用正文结构</button><button type="button" onClick={onApplyAll}>采用全部建议</button></div></div>
     </>}
     <small>当前版本在浏览器本机整理原文，不上传文件。阿里云 AI 接口将在安全地址配置完成后用于进一步润色。</small>
   </section>;
+}
+
+function MarkdownToolbar({ onInsert }) {
+  const tools = [
+    ["H1", "# ", "", "一级标题"], ["H2", "## ", "", "二级标题"], ["B", "**", "**", "粗体文字"], ["I", "*", "*", "斜体文字"],
+    ["引用", "> ", "", "引用内容"], ["列表", "- ", "", "列表项目"], ["链接", "[", "](https://)", "链接文字"], ["代码", "`", "`", "代码"],
+  ];
+  return <div className="markdown-toolbar" aria-label="Markdown 快捷工具栏">{tools.map(([label, before, after, placeholder]) => <button type="button" key={label} onClick={() => onInsert(before, after, placeholder)} title={`插入${placeholder}`}>{label}</button>)}</div>;
 }
 
 export default function AdminStudio() {
@@ -152,6 +180,7 @@ export default function AdminStudio() {
   const [toast, setToast] = useState("");
   const [dragging, setDragging] = useState(false);
   const [pendingFiles, setPendingFiles] = useState([]);
+  const [pendingMoves, setPendingMoves] = useState([]);
   const [config, setConfig] = useState({ repository: "Mu-yin/xiaohey", branch: "main", allowedLogin: "Mu-yin" });
   const [auth, setAuth] = useState({ loading: true, authenticated: false, login: "" });
   const [loginOpen, setLoginOpen] = useState(false);
@@ -159,9 +188,11 @@ export default function AdminStudio() {
   const [authenticating, setAuthenticating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisFocus, setAnalysisFocus] = useState("");
   const [smartReports, setSmartReports] = useState({});
   const [publishedFiles, setPublishedFiles] = useState(() => initialEntries.map((post) => post.sourceFile));
   const fileInput = useRef(null);
+  const bodyEditor = useRef(null);
   const selected = posts.find((post) => post.id === selectedId) || posts[0];
   const smartReport = smartReports[selectedId];
 
@@ -238,8 +269,8 @@ export default function AdminStudio() {
   };
 
   const importAsSmartPost = (text, file, extras = {}) => {
-    const draft = buildSmartDraft({ text, fileName: file.name, categories });
-    const base = { ...emptyPost(categories, posts.length), ...extras };
+    const draft = buildSmartDraft({ text, fileName: file.name, categories, focus: analysisFocus });
+    const base = { ...emptyPost(categories, posts.length), ...extras, id: extras.id || safeArticleId() };
     const post = postWithSmartDraft(base, draft, posts);
     setPosts((current) => [post, ...current]);
     setSelectedId(post.id);
@@ -252,7 +283,7 @@ export default function AdminStudio() {
     if (!selected?.rawMarkdown?.trim()) { notify("请先输入或上传文章正文"); return; }
     setAnalyzing(true);
     window.setTimeout(() => {
-      const draft = buildSmartDraft({ text: selected.rawMarkdown, fileName: selected.sourceFile || `${selected.title}.md`, categories });
+      const draft = buildSmartDraft({ text: selected.rawMarkdown, fileName: selected.sourceFile || `${selected.title}.md`, categories, focus: analysisFocus });
       rememberSmartReport(selected.id, draft, selected.sourceFile || "当前正文");
       setAnalyzing(false);
       notify("已生成新的文章信息建议");
@@ -285,6 +316,23 @@ export default function AdminStudio() {
     notify("已采用全部智能建议");
   };
 
+  const insertMarkdown = (before, after, placeholder) => {
+    const textarea = bodyEditor.current;
+    if (!textarea || !selected) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const chosen = selected.rawMarkdown.slice(start, end) || placeholder;
+    const linePrefix = before.endsWith(" ") && start > 0 && selected.rawMarkdown[start - 1] !== "\n" ? "\n" : "";
+    const insertion = `${linePrefix}${before}${chosen}${after}`;
+    const value = `${selected.rawMarkdown.slice(0, start)}${insertion}${selected.rawMarkdown.slice(end)}`;
+    updatePost({ rawMarkdown: value, sections: sectionsFromMarkdown(value) });
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      const nextStart = start + linePrefix.length + before.length;
+      textarea.setSelectionRange(nextStart, nextStart + chosen.length);
+    });
+  };
+
   const importFiles = async (files) => {
     const list = [...files];
     if (!list.length) return;
@@ -309,9 +357,9 @@ export default function AdminStudio() {
           for (let index = 1; index <= document.numPages; index += 1) {
             const page = await document.getPage(index); const text = await page.getTextContent(); pages.push(text.items.map((item) => item.str).join(" "));
           }
-          const id = slugify(file.name.replace(/\.pdf$/i, ""));
+          const id = safeArticleId();
           const dataUrl = await readAsDataUrl(file); const path = `public/uploads/${id}/${file.name}`;
-          importAsSmartPost(pages.join("\n\n"), file, { attachments: [{ name: file.name, path: path.replace(/^public\//, ""), description: `PDF · ${humanSize(file.size)}` }] });
+          importAsSmartPost(pages.join("\n\n"), file, { id, attachments: [{ name: file.name, path: path.replace(/^public\//, ""), description: `PDF · ${humanSize(file.size)}` }] });
           setPendingFiles((current) => [...current, { path, content: dataUrl.split(",")[1], encoding: "base64", name: file.name, size: file.size }]);
           notify(`已提取 ${file.name}，自动建稿并保留原 PDF`);
         } else if (file.type.startsWith("image/")) {
@@ -327,6 +375,36 @@ export default function AdminStudio() {
         }
       } catch (error) { notify(`${file.name} 导入失败：${error.message}`); }
     }
+  };
+
+  const renameAttachment = (attachment) => {
+    if (!selected || /^https?:\/\//i.test(attachment.path)) { notify("外部链接附件不能在这里重命名"); return; }
+    const requested = window.prompt("输入公开显示和下载时使用的附件名称（扩展名会自动保留）", attachment.name);
+    if (requested === null) return;
+    const nextName = normalizedAttachmentName(requested, attachment.name);
+    if (!nextName) { notify("请输入有效的附件名称"); return; }
+    const currentPath = attachment.path.replace(/\\/g, "/");
+    const existingSafeDirectory = currentPath.match(/^(uploads\/assets\/file-[^/]+)\//)?.[1];
+    const directory = existingSafeDirectory || safeAssetFolder();
+    const nextPath = `${directory}/${nextName}`;
+    if (selected.attachments.some((item) => item.path !== attachment.path && item.path.toLowerCase() === nextPath.toLowerCase())) {
+      notify("这个名称已被当前文章的其他附件使用"); return;
+    }
+
+    const oldPublicPath = publicFilePath(attachment.path);
+    const nextPublicPath = publicFilePath(nextPath);
+    const isWaitingForPublish = pendingFiles.some((file) => file.path === oldPublicPath);
+    if (isWaitingForPublish) {
+      setPendingFiles((current) => current.map((file) => file.path === oldPublicPath ? { ...file, path: nextPublicPath, name: nextName } : file));
+    } else {
+      setPendingMoves((current) => {
+        const chainedIndex = current.findIndex((move) => move.to === oldPublicPath);
+        if (chainedIndex >= 0) return current.map((move, index) => index === chainedIndex ? { ...move, to: nextPublicPath } : move);
+        return [...current.filter((move) => move.from !== oldPublicPath), { from: oldPublicPath, to: nextPublicPath }];
+      });
+    }
+    updatePost({ attachments: selected.attachments.map((item) => item.path === attachment.path ? { ...item, name: nextName, path: nextPath } : item) });
+    notify("附件已重命名；发布后原文件地址也会被替换");
   };
 
   const connectGitHub = () => {
@@ -385,6 +463,15 @@ export default function AdminStudio() {
       const ref = await githubApi(`/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`, token);
       const parent = await githubApi(`/repos/${owner}/${repo}/git/commits/${ref.object.sha}`, token);
       const treeElements = [];
+      if (pendingMoves.length) {
+        const baseTree = await githubApi(`/repos/${owner}/${repo}/git/trees/${parent.tree.sha}?recursive=1`, token);
+        for (const move of pendingMoves) {
+          const original = baseTree.tree?.find((item) => item.path === move.from && item.type === "blob");
+          if (!original?.sha) throw new Error(`找不到待重命名的附件：${move.from.replace(/^public\//, "")}`);
+          treeElements.push({ path: move.to, mode: "100644", type: "blob", sha: original.sha });
+          treeElements.push({ path: move.from, mode: "100644", type: "blob", sha: null });
+        }
+      }
       for (const file of files) {
         const blob = await githubApi(`/repos/${owner}/${repo}/git/blobs`, token, {
           method: "POST",
@@ -406,7 +493,7 @@ export default function AdminStudio() {
         body: JSON.stringify({ sha: commit.sha, force: false }),
       });
       setPublishedFiles([...currentFiles]);
-      localStorage.removeItem("xiaohey-editor-draft"); setDirty(false); setPendingFiles([]); notify("发布成功，展示站正在自动更新");
+      localStorage.removeItem("xiaohey-editor-draft"); setDirty(false); setPendingFiles([]); setPendingMoves([]); notify("发布成功，展示站正在自动更新");
     } catch (error) {
       if (/授权已失效|连接已失效/.test(error.message)) disconnectGitHub();
       notify(error.message);
@@ -448,16 +535,16 @@ export default function AdminStudio() {
 
           {selected && <section className="post-editor">
             <div className="editor-toolbar"><div><button className={!preview ? "active" : ""} onClick={() => setPreview(false)}>编辑</button><button className={preview ? "active" : ""} onClick={() => setPreview(true)}>预览</button></div><button className="danger" onClick={removePost}><Icon name="trash" />删除</button></div>
-            {preview ? <article className="article-preview"><span>{selected.eyebrow}</span><h1>{selected.title}</h1><p className="preview-lead">{selected.abstract}</p><blockquote>{selected.takeaway}</blockquote>{sectionsFromMarkdown(selected.rawMarkdown).map((section) => <section key={section.title}><h2>{section.title}</h2><p>{section.body}</p></section>)}</article> : <div className="editor-form">
-              <SmartDraftPanel report={smartReport} analyzing={analyzing} onAnalyze={analyzeSelectedPost} onApply={applySmartSuggestion} onApplyAll={applyAllSmartSuggestions} onChooseFile={() => fileInput.current?.click()} />
+            {preview ? <article className="article-preview"><span>{selected.eyebrow}</span><h1>{selected.title}</h1><p className="preview-lead">{selected.abstract}</p><blockquote>{selected.takeaway}</blockquote><MarkdownContent basePath={process.env.NEXT_PUBLIC_BASE_PATH || ""}>{selected.rawMarkdown}</MarkdownContent></article> : <div className="editor-form">
+              <SmartDraftPanel report={smartReport} analyzing={analyzing} focus={analysisFocus} onFocusChange={setAnalysisFocus} onAnalyze={analyzeSelectedPost} onApply={applySmartSuggestion} onApplyAll={applyAllSmartSuggestions} onChooseFile={() => fileInput.current?.click()} />
               <div className="form-row wide"><label>文章标题<input value={selected.title} onChange={(event) => updatePost({ title: event.target.value })} /></label></div>
               <div className="form-grid"><label>分类<select value={selected.typeKey} onChange={(event) => { const category = categories.find((item) => item.key === event.target.value); updatePost({ typeKey: event.target.value, type: category?.label, accent: category?.accent }); }}><option value="">选择分类</option>{categories.map((category) => <option key={category.key} value={category.key}>{category.label}</option>)}</select></label><label>发布状态<select value={selected.status} onChange={(event) => updatePost({ status: event.target.value })}><option value="draft">草稿</option><option value="published">公开发布</option><option value="archived">归档隐藏</option></select></label><label>发布日期<input value={selected.date} onChange={(event) => updatePost({ date: event.target.value })} /></label><label>阅读时间<input value={selected.readTime} onChange={(event) => updatePost({ readTime: event.target.value })} /></label></div>
               <label>文章摘要<textarea rows="3" value={selected.abstract} onChange={(event) => updatePost({ abstract: event.target.value })} /></label>
               <label>核心观点<textarea rows="2" value={selected.takeaway} onChange={(event) => updatePost({ takeaway: event.target.value })} /></label>
               <div className="form-grid"><label>标签<input value={(selected.tags || []).join("，")} onChange={(event) => updatePost({ tags: event.target.value.split(/[，,]/).map((item) => item.trim()).filter(Boolean) })} placeholder="学习，论文，方法" /></label><label>眉题<input value={selected.eyebrow} onChange={(event) => updatePost({ eyebrow: event.target.value })} /></label></div>
-              <label>正文（使用 ## 开始一个新章节）<textarea className="body-editor" value={selected.rawMarkdown} onChange={(event) => updatePost({ rawMarkdown: event.target.value, sections: sectionsFromMarkdown(event.target.value) })} /></label>
+              <label>正文（支持完整 Markdown）<div className="markdown-editor-shell"><MarkdownToolbar onInsert={insertMarkdown} /><textarea ref={bodyEditor} className="body-editor" value={selected.rawMarkdown} onChange={(event) => updatePost({ rawMarkdown: event.target.value, sections: sectionsFromMarkdown(event.target.value) })} /></div><small className="markdown-help">支持 # 标题、*斜体*、**粗体**、列表、引用、链接、代码块、表格和任务清单；点击“预览”查看最终效果。</small></label>
               <div className={`drop-zone ${dragging ? "dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); importFiles(event.dataTransfer.files); }} onClick={() => fileInput.current?.click()}><Icon name="upload" /><strong>拖入图片、PDF或其他附件</strong><span>图片会成为封面，其他文件会加入文章下载区</span></div>
-              {!!selected.attachments?.length && <div className="editor-attachments">{selected.attachments.map((item) => <div key={item.path}><Icon name="file" /><span><strong>{item.name}</strong><small>{item.description}</small></span><button onClick={() => updatePost({ attachments: selected.attachments.filter((attachment) => attachment.path !== item.path) })}>移除</button></div>)}</div>}
+              {!!selected.attachments?.length && <div className="editor-attachments">{selected.attachments.map((item) => <div key={item.path}><Icon name="file" /><span><strong>{item.name}</strong><small>{item.description}</small></span><span className="attachment-actions"><button type="button" onClick={() => renameAttachment(item)}>重命名</button><button type="button" onClick={() => updatePost({ attachments: selected.attachments.filter((attachment) => attachment.path !== item.path) })}>移除</button></span></div>)}</div>}
             </div>}
           </section>}
         </div>}

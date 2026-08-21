@@ -28,7 +28,7 @@ function articleMarkdown(entry, basePath) {
     "",
     `> ${entry.takeaway}`,
     "",
-    ...entry.sections.flatMap((section) => [`## ${section.title}`, "", section.body, ""]),
+    entry.rawMarkdown?.trim() || entry.sections.flatMap((section) => [`## ${section.title}`, "", section.body, ""]).join("\n"),
     ...attachments,
     "---",
     "",
@@ -38,7 +38,8 @@ function articleMarkdown(entry, basePath) {
 }
 
 function articleWord(entry, basePath) {
-  const sections = entry.sections.map((section) => `<section><h2>${escapeHtml(section.title)}</h2>${escapeHtml(section.body).split(/\n{2,}/).map((paragraph) => `<p>${paragraph.replaceAll("\n", "<br>")}</p>`).join("")}</section>`).join("");
+  const renderedMarkdown = document.querySelector(".article-markdown")?.innerHTML;
+  const sections = renderedMarkdown || entry.sections.map((section) => `<section><h2>${escapeHtml(section.title)}</h2>${escapeHtml(section.body).split(/\n{2,}/).map((paragraph) => `<p>${paragraph.replaceAll("\n", "<br>")}</p>`).join("")}</section>`).join("");
   const attachments = entry.attachments?.length
     ? `<section><h2>相关资料与附件</h2><ul>${entry.attachments.map((item) => `<li><a href="${escapeHtml(`${location.origin}${basePath}/${item.path.replace(/^\/?/, "")}`)}">${escapeHtml(item.name)}</a>${item.description ? ` — ${escapeHtml(item.description)}` : ""}</li>`).join("")}</ul></section>`
     : "";

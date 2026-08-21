@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Giscus from "@giscus/react";
 import { entries as allEntries, filters, notes, siteConfig } from "@/data/content";
+import MarkdownContent from "@/components/MarkdownContent";
 
 const entries = allEntries.filter((entry) => entry.status === "published");
-const articleUrl = (entry) => `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/article/${entry.id}/`;
+const articleUrl = (entry) => `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/read/?id=${encodeURIComponent(entry.id)}`;
 const assetUrl = (value = "") => {
   if (!value || /^https?:\/\//.test(value)) return value;
   const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -155,13 +156,7 @@ function DetailDrawer({ entry, saved, onSave, onClose, onToast, theme }) {
           <div className="detail-meta"><span>{entry.date}</span><span>{entry.readTime}</span><span>{entry.level}</span></div>
           <p className="detail-lead">{entry.abstract}</p>
           <blockquote>“{entry.takeaway}”</blockquote>
-          {entry.sections.map((section, index) => (
-            <section key={section.title}>
-              <span className="section-number">0{index + 1}</span>
-              <h3>{section.title}</h3>
-              <p className="article-body">{section.body}</p>
-            </section>
-          ))}
+          <MarkdownContent className="drawer-markdown" basePath={process.env.NEXT_PUBLIC_BASE_PATH || ""}>{entry.rawMarkdown}</MarkdownContent>
           {!!entry.attachments?.length && (
             <section className="article-attachments">
               <span className="section-number">附</span>
