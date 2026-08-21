@@ -11,13 +11,16 @@ function parsePost(source, fileName) {
   if (!match) throw new Error(`${fileName}: 缺少 JSON 文章头信息`);
   const meta = JSON.parse(match[1]);
   const body = match[2].replace(/\r\n/g, "\n").trim();
-  const sections = body
-    .split(/^##\s+/m)
-    .filter(Boolean)
-    .map((chunk) => {
-      const [title, ...lines] = chunk.split(/\r?\n/);
-      return { title: title.trim(), body: lines.join("\n").trim() };
-    });
+  const sections = [];
+  let current = { title: "正文", lines: [] };
+  for (const line of body.split("\n")) {
+    const heading = line.match(/^#{1,3}\s+(.+)$/);
+    if (heading) {
+      if (current.lines.join("\n").trim()) sections.push({ title: current.title, body: current.lines.join("\n").trim() });
+      current = { title: heading[1].replace(/[*_`~]/g, "").trim(), lines: [] };
+    } else current.lines.push(line);
+  }
+  if (current.lines.join("\n").trim() || !sections.length) sections.push({ title: current.title, body: current.lines.join("\n").trim() });
   return { ...meta, rawMarkdown: body, sections, sourceFile: fileName };
 }
 

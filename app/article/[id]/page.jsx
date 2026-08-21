@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import ArticleDownloads from "@/components/ArticleDownloads";
+import MarkdownContent, { extractMarkdownHeadings } from "@/components/MarkdownContent";
 import { entries, siteConfig } from "@/data/content";
 import "../article.css";
 
@@ -40,6 +41,7 @@ export default async function ArticlePage({ params }) {
   if (!entry) notFound();
   const currentIndex = publishedEntries.findIndex((item) => item.id === entry.id);
   const nextEntry = publishedEntries[(currentIndex + 1) % publishedEntries.length];
+  const headings = extractMarkdownHeadings(entry.rawMarkdown);
 
   return (
     <div className="article-page" id="top">
@@ -54,7 +56,7 @@ export default async function ArticlePage({ params }) {
         <aside className="article-sidebar">
           <div className="article-sidebar-card">
             <span>CONTENTS</span>
-            <nav>{entry.sections.map((section, index) => <a key={section.title} href={`#section-${index + 1}`}><em>0{index + 1}</em>{section.title}</a>)}</nav>
+            <nav>{headings.map((heading, index) => <a className={`toc-depth-${heading.depth}`} key={`${heading.id}-${index}`} href={`#${heading.id}`}><em>{String(index + 1).padStart(2, "0")}</em>{heading.title}</a>)}</nav>
           </div>
           <div className="article-sidebar-card export-card">
             <span>DOWNLOAD</span>
@@ -71,12 +73,7 @@ export default async function ArticlePage({ params }) {
           <p className="article-abstract">{entry.abstract}</p>
           <blockquote>“{entry.takeaway}”</blockquote>
 
-          {entry.sections.map((section, index) => (
-            <section id={`section-${index + 1}`} key={section.title}>
-              <div className="article-section-heading"><span>0{index + 1}</span><h2>{section.title}</h2></div>
-              <div className="article-section-body">{section.body.split(/\n{2,}/).map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}</div>
-            </section>
-          ))}
+          <MarkdownContent className="article-markdown" basePath={basePath}>{entry.rawMarkdown}</MarkdownContent>
 
           {!!entry.attachments?.length && <section className="article-file-section" id="attachments">
             <div className="article-section-heading"><span>附</span><h2>相关资料与附件</h2></div>
@@ -86,7 +83,7 @@ export default async function ArticlePage({ params }) {
           <div className="article-citation"><span>推荐引用</span><p>{entry.citation}</p></div>
           <footer className="article-reader-footer">
             <a href={`${basePath}/#library`}>返回全部文章</a>
-            {nextEntry && <a href={`${basePath}/article/${nextEntry.id}/`}>下一篇：{nextEntry.title} →</a>}
+            {nextEntry && <a href={`${basePath}/article/${encodeURIComponent(nextEntry.id)}/`}>下一篇：{nextEntry.title} →</a>}
           </footer>
         </article>
       </main>

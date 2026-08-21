@@ -37,3 +37,17 @@ test("keeps plain text and creates readable sections", () => {
   assert.match(draft.rawMarkdown, /^## 内容概览/m);
   assert.ok(draft.sourceLength > 30);
 });
+
+test("prioritizes abstract, conclusion, and a user supplied focus", () => {
+  const draft = buildSmartDraft({
+    fileName: "研究记录.md",
+    categories,
+    focus: "方法局限",
+    text: "# 在线学习效果研究\n\n## 摘要\n\n本研究比较两种在线学习方式，并使用连续八周的行为数据评估学习效果。结果显示，主动练习组的保持率更高。\n\n## 方法\n\n研究采用观察性数据，因此无法完全排除自选择偏差，这是解释结果时最重要的方法局限。\n\n## 结论\n\n作者认为主动练习可能改善保持率，但结论不能直接解释为因果效应。未来需要随机实验进一步验证。",
+  });
+
+  assert.match(draft.abstract, /本研究比较两种在线学习方式/);
+  assert.match(draft.takeaway, /因果效应|随机实验/);
+  assert.ok(draft.signals.some((signal) => signal.includes("方法局限")));
+  assert.ok(draft.evidence.length > 0);
+});

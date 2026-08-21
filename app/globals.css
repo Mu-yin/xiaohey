@@ -247,6 +247,18 @@ main { width: 100%; }
 .detail-content section h3 { margin: 0 0 11px; font-family: var(--serif); font-size: 20px; }
 .detail-content section p { margin: 0; color: var(--ink-soft); font-family: var(--serif); font-size: 14px; line-height: 2; }
 .article-body { white-space: pre-line; }
+.markdown-content { min-width: 0; overflow-wrap: anywhere; color: var(--ink-soft); font-family: var(--serif); font-size: 15px; line-height: 2; }
+.markdown-content > :first-child { margin-top: 0; }.markdown-content > :last-child { margin-bottom: 0; }
+.markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4, .markdown-content h5, .markdown-content h6 { scroll-margin-top: 92px; color: var(--ink); font-family: var(--serif); line-height: 1.45; letter-spacing: -.025em; }
+.markdown-content h1 { margin: 50px 0 20px; font-size: 31px; }.markdown-content h2, .detail-content .drawer-markdown h2 { margin: 44px 0 17px; font-size: 24px; }.markdown-content h3 { margin: 34px 0 14px; font-size: 19px; }.markdown-content h4 { margin: 28px 0 12px; font-size: 16px; }
+.markdown-content p { margin: 0 0 19px; }.markdown-content strong { color: var(--ink); font-weight: 700; }.markdown-content em { font-style: italic; }.markdown-content del { color: var(--muted); }
+.markdown-content ul, .markdown-content ol { margin: 0 0 22px; padding-left: 1.6em; }.markdown-content li { margin: 7px 0; padding-left: .25em; }.markdown-content li::marker { color: var(--red); }.markdown-content li > p { margin: 0; }
+.markdown-content blockquote, .detail-content .markdown-content blockquote { margin: 27px 0; padding: 16px 21px; border-left: 3px solid var(--red); background: var(--paper-2); font-size: 14px; line-height: 1.9; }.markdown-content blockquote p { margin: 0; }
+.markdown-content a { color: var(--pine-2); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--pine-2) 38%, transparent); text-underline-offset: 4px; }.markdown-content a:hover { color: var(--red); }
+.markdown-content code { padding: 2px 5px; border-radius: 3px; background: var(--paper-2); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .86em; }.markdown-content pre { max-width: 100%; margin: 24px 0; overflow-x: auto; padding: 18px 20px; border-radius: 4px; color: #e8eee9; background: #14221d; line-height: 1.7; }.markdown-content pre code { padding: 0; color: inherit; background: transparent; }
+.markdown-content table { width: 100%; margin: 25px 0; border-collapse: collapse; font-family: var(--sans); font-size: 12px; line-height: 1.6; }.markdown-content th, .markdown-content td { padding: 10px 12px; border: 1px solid var(--line); text-align: left; }.markdown-content th { color: var(--ink); background: var(--paper-2); }.markdown-content tr:nth-child(even) td { background: color-mix(in srgb, var(--paper-2) 48%, transparent); }
+.markdown-content img { display: block; max-width: 100%; height: auto; margin: 28px auto; border-radius: 4px; }.markdown-content hr { margin: 38px 0; border: 0; border-top: 1px solid var(--line); }.markdown-content input[type="checkbox"] { margin-right: 7px; accent-color: var(--pine); }
+.drawer-markdown { margin-bottom: 45px; }.drawer-markdown h1:first-child, .drawer-markdown h2:first-child, .drawer-markdown h3:first-child { margin-top: 0; }
 .article-attachments { margin-top: 46px !important; padding-top: 28px; border-top: 1px solid var(--line); }
 .attachment-list { display: grid; gap: 10px; }
 .attachment-list a { display: grid; grid-template-columns: 38px 1fr; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--line); background: var(--card); }
