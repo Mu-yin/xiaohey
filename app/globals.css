@@ -158,11 +158,15 @@ main { width: 100%; }
 .notes-section { padding: 80px max(32px, calc((100% - 1250px) / 2)) 94px; background: #1c2723; }
 .notes-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid rgba(255,255,255,.2); border-bottom: 1px solid rgba(255,255,255,.2); }
 .notes-grid article { min-height: 250px; display: flex; flex-direction: column; padding: 27px 30px 25px; border-right: 1px solid rgba(255,255,255,.2); }
+.notes-grid article.is-pinned { box-shadow: inset 3px 0 #e7816f; background: rgba(255,255,255,.035); }
 .notes-grid article:last-child { border-right: 0; }
 .notes-grid header { display: flex; justify-content: space-between; color: rgba(255,255,255,.45); font-size: 9px; letter-spacing: .15em; }
-.notes-grid p { margin: auto 0; font-family: var(--serif); font-size: 20px; line-height: 1.75; }
+.note-home-link { display: flex; flex: 1; flex-direction: column; justify-content: center; color: inherit; text-decoration: none; }
+.note-home-link strong { margin: 24px 0 8px; color: #e7816f; font-family: var(--serif); font-size: 12px; font-weight: 500; }
+.notes-grid p { margin: 0; font-family: var(--serif); font-size: 20px; line-height: 1.75; }
 .notes-grid footer { display: flex; align-items: center; gap: 12px; color: #e7816f; font-size: 10px; }
 .notes-grid footer i { flex: 1; height: 1px; background: rgba(255,255,255,.18); }
+.notes-view-all { color: #e7816f; font-size: 10px; letter-spacing: .08em; text-decoration: none; }
 
 .about-section { padding: 110px max(32px, calc((100% - 1150px) / 2)); }
 .about-grid { display: grid; grid-template-columns: 190px 1fr 310px; align-items: center; gap: 62px; }

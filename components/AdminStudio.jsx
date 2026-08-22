@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { categories as initialCategories, entries as initialEntries, notes as initialNotes, siteConfig as initialSite } from "@/data/content";
 import { buildSmartDraft } from "@/lib/smart-draft.mjs";
+import { reconstructPdfDocument, wordHtmlToMarkdown } from "@/lib/document-extraction.mjs";
+import { formatNoteTime, localDateString, normalizeNotes } from "@/lib/notes.mjs";
 import MarkdownContent from "@/components/MarkdownContent";
 
 const ACCENTS = ["green", "terracotta", "navy", "ochre", "slate", "plum"];
 const deepCopy = (value) => JSON.parse(JSON.stringify(value));
-const today = () => new Date().toISOString().slice(0, 10).replaceAll("-", ".");
+const today = () => localDateString();
 const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-").replace(/^-|-$/g, "") || `note-${Date.now()}`;
 const safeArticleId = () => `article-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 const safeAssetFolder = () => `uploads/assets/file-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -99,8 +101,9 @@ function emptyPost(categories, count) {
   };
 }
 
-function postWithSmartDraft(post, draft) {
+function postWithSmartDraft(post, draft, options = {}) {
   const id = post.id || safeArticleId();
+  const rawMarkdown = options.rawMarkdown ?? post.rawMarkdown ?? draft.rawMarkdown;
   return {
     ...post,
     id,
@@ -115,10 +118,28 @@ function postWithSmartDraft(post, draft) {
     eyebrow: draft.eyebrow,
     readTime: draft.readTime,
     level: draft.level,
-    rawMarkdown: draft.rawMarkdown,
-    sections: sectionsFromMarkdown(draft.rawMarkdown),
+    rawMarkdown,
+    sections: sectionsFromMarkdown(rawMarkdown),
     citation: post.citation?.trim() && !post.citation.includes("未命名") ? post.citation : defaultCitation(draft.title, post.date),
   };
+}
+
+function ExtractionReportPanel({ report }) {
+  if (!report) return null;
+  const details = [
+    report.pageCount ? `${report.pageCount} 页` : null,
+    `${report.charCount || 0} 字`,
+    `${report.lineCount || 0} 行`,
+    `${report.headingCount || 0} 个标题`,
+    `${report.listCount || 0} 个列表`,
+    report.tableCount ? `${report.tableCount} 个表格` : null,
+  ].filter(Boolean);
+  return <section className="extraction-report">
+    <header><div><span>DOCUMENT FIDELITY</span><h2>原文还原报告</h2></div><strong className={`quality-${report.quality === "良好" ? "good" : report.quality === "基本可用" ? "fair" : "warn"}`}>{report.quality}</strong></header>
+    <p>{report.format} · {details.join(" · ")}</p>
+    {!!report.warnings?.length && <ul>{report.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
+    <small>正文按原文件优先保留。智能建稿只填写标题、分类、摘要等信息，不会自动改写正文；如需采用建议结构，请单独点击“采用正文结构”。</small>
+  </section>;
 }
 
 function Icon({ name }) {
@@ -149,12 +170,12 @@ function SmartDraftPanel({ report, analyzing, focus, onFocusChange, onAnalyze, o
   return <section className={`smart-draft-panel ${report ? "has-report" : ""}`}>
     <header><div className="smart-draft-title"><span><Icon name="sparkles" /></span><div><em>SMART DRAFT</em><h2>智能建稿助手</h2></div></div><span className="smart-mode">本机安全分析</span></header>
     <label className="smart-focus">分析重点（可选）<input value={focus} onChange={(event) => onFocusChange(event.target.value)} placeholder="例如：重点提炼作者的研究结论、方法局限和实践建议" /></label>
-    {!report ? <div className="smart-empty"><p>上传 Word、PDF、Markdown 或 TXT 后，会自动生成标题、分类、摘要、核心观点、标签、眉题和正文结构。</p><div><button type="button" onClick={onChooseFile}><Icon name="upload" />上传文件并自动建稿</button><button type="button" className="secondary" onClick={onAnalyze} disabled={analyzing}>{analyzing ? "正在分析…" : "分析当前正文"}</button></div></div> : <>
+    {!report ? <div className="smart-empty"><p>上传 Word、PDF、Markdown 或 TXT 后，会保留提取出的原正文，并为标题、分类、摘要、核心观点、标签、眉题生成可修改的建议。</p><div><button type="button" onClick={onChooseFile}><Icon name="upload" />上传文件并自动建稿</button><button type="button" className="secondary" onClick={onAnalyze} disabled={analyzing}>{analyzing ? "正在分析…" : "分析当前正文"}</button></div></div> : <>
       <div className="smart-report-meta"><div><strong>{report.sourceName}</strong><span>{report.sourceLength.toLocaleString()} 字 · {new Date(report.generatedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}</span></div><button type="button" onClick={onAnalyze} disabled={analyzing}>{analyzing ? "正在分析…" : "重新分析正文"}</button></div>
       <div className="smart-signals">{report.signals.map((signal) => <span key={signal}>✓ {signal}</span>)}</div>
       {!!report.evidence?.length && <details className="smart-evidence"><summary>查看摘要生成依据</summary>{report.evidence.map((sentence) => <p key={sentence}>“{sentence}”</p>)}</details>}
       <div className="smart-suggestion-grid">{suggestions.map((item) => <article key={item.key}><span>{item.label}</span><p>{item.value}</p><button type="button" onClick={() => onApply(item.key)}>采用</button></article>)}</div>
-      <div className="smart-draft-footer"><p>建议已经自动填入新文章，你可以继续修改；“采用全部”会覆盖当前表单内容。</p><div><button type="button" className="secondary" onClick={() => onApply("rawMarkdown")}>采用正文结构</button><button type="button" onClick={onApplyAll}>采用全部建议</button></div></div>
+      <div className="smart-draft-footer"><p>“采用全部”只更新文章信息，不覆盖原正文；正文结构必须单独采用。</p><div><button type="button" className="secondary" onClick={() => onApply("rawMarkdown")}>采用正文结构</button><button type="button" onClick={onApplyAll}>采用全部文章信息</button></div></div>
     </>}
     <small>当前版本在浏览器本机整理原文，不上传文件。阿里云 AI 接口将在安全地址配置完成后用于进一步润色。</small>
   </section>;
@@ -173,7 +194,7 @@ export default function AdminStudio() {
   const [posts, setPosts] = useState(() => deepCopy(initialEntries));
   const [categories, setCategories] = useState(() => deepCopy(initialCategories));
   const [site, setSite] = useState(() => deepCopy(initialSite));
-  const [notes, setNotes] = useState(() => deepCopy(initialNotes));
+  const [notes, setNotes] = useState(() => normalizeNotes(deepCopy(initialNotes)));
   const [selectedId, setSelectedId] = useState(initialEntries[0]?.id || "");
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState(false);
@@ -191,11 +212,20 @@ export default function AdminStudio() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisFocus, setAnalysisFocus] = useState("");
   const [smartReports, setSmartReports] = useState({});
+  const [extractionReports, setExtractionReports] = useState({});
+  const [importProgress, setImportProgress] = useState("");
+  const [quickNoteText, setQuickNoteText] = useState("");
+  const [quickNoteTags, setQuickNoteTags] = useState("");
+  const [noteQuery, setNoteQuery] = useState("");
+  const [noteTagFilter, setNoteTagFilter] = useState("all");
+  const [noteMonthFilter, setNoteMonthFilter] = useState("all");
+  const [noteStatusFilter, setNoteStatusFilter] = useState("active");
   const [publishedFiles, setPublishedFiles] = useState(() => initialEntries.map((post) => post.sourceFile));
   const fileInput = useRef(null);
   const bodyEditor = useRef(null);
   const selected = posts.find((post) => post.id === selectedId) || posts[0];
   const smartReport = smartReports[selectedId];
+  const extractionReport = extractionReports[selectedId];
 
   const notify = (message) => {
     setToast(message);
@@ -213,7 +243,7 @@ export default function AdminStudio() {
       try {
         const parsed = JSON.parse(draft);
         if (parsed.savedAt && confirm(`发现 ${new Date(parsed.savedAt).toLocaleString()} 的本机草稿，是否恢复？`)) {
-          setPosts(parsed.posts); setCategories(parsed.categories); setSite(parsed.site); setNotes(parsed.notes); setDirty(true);
+          setPosts(parsed.posts); setCategories(parsed.categories); setSite(parsed.site); setNotes(normalizeNotes(parsed.notes || [])); setDirty(true);
         }
       } catch { /* ignore stale drafts */ }
     }
@@ -245,6 +275,13 @@ export default function AdminStudio() {
   }, [dirty]);
 
   const filteredPosts = useMemo(() => posts.filter((post) => [post.title, post.abstract, post.type, ...(post.tags || [])].join(" ").toLowerCase().includes(query.toLowerCase())), [posts, query]);
+  const noteTags = useMemo(() => [...new Set(notes.flatMap((note) => note.tags || []))].sort((a, b) => a.localeCompare(b, "zh-CN")), [notes]);
+  const noteMonths = useMemo(() => [...new Set(notes.map((note) => (note.contentDate || "").slice(0, 7)).filter(Boolean))].sort().reverse(), [notes]);
+  const filteredNotes = useMemo(() => notes.filter((note) => {
+    const haystack = [note.title, note.text, ...(note.tags || [])].join(" ").toLowerCase();
+    const statusMatch = noteStatusFilter === "all" || (noteStatusFilter === "archived" ? note.archived : !note.archived);
+    return haystack.includes(noteQuery.toLowerCase()) && statusMatch && (noteTagFilter === "all" || note.tags?.includes(noteTagFilter)) && (noteMonthFilter === "all" || note.contentDate?.startsWith(noteMonthFilter));
+  }).sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.updatedAt) - new Date(a.updatedAt)), [notes, noteQuery, noteStatusFilter, noteTagFilter, noteMonthFilter]);
   const updatePost = (patch) => {
     setPosts((current) => current.map((post) => post.id === selectedId ? { ...post, ...patch } : post));
     setDirty(true);
@@ -261,18 +298,30 @@ export default function AdminStudio() {
   };
 
   const addNote = () => {
-    setNotes((current) => [{ date: today(), text: "写下一条简短的想法。", tag: "新想法" }, ...current]);
+    const now = new Date().toISOString();
+    const note = { id: `note-${Date.now().toString(36)}`, title: "未命名随手记", text: "写下一条简短的想法。", contentDate: today(), createdAt: now, updatedAt: now, tags: ["新想法"], pinned: false, archived: false, sourceUrl: "" };
+    setNotes((current) => [note, ...current]);
     setDirty(true);
   };
 
-  const updateNote = (index, patch) => {
-    setNotes((current) => current.map((note, noteIndex) => noteIndex === index ? { ...note, ...patch } : note));
+  const quickAddNote = () => {
+    const text = quickNoteText.trim();
+    if (!text) { notify("请先写下随手记内容"); return; }
+    const now = new Date().toISOString();
+    const tags = quickNoteTags.split(/[，,]/).map((item) => item.trim()).filter(Boolean);
+    const note = { id: `note-${Date.now().toString(36)}`, title: text.replace(/[“”"']/g, "").slice(0, 22), text, contentDate: today(), createdAt: now, updatedAt: now, tags, pinned: false, archived: false, sourceUrl: "" };
+    setNotes((current) => [note, ...current]);
+    setQuickNoteText(""); setQuickNoteTags(""); setDirty(true); notify("随手记已保存到本机草稿");
+  };
+
+  const updateNote = (id, patch) => {
+    setNotes((current) => current.map((note) => note.id === id ? { ...note, ...patch, updatedAt: new Date().toISOString() } : note));
     setDirty(true);
   };
 
-  const removeNote = (index) => {
+  const removeNote = (id) => {
     if (!confirm("确定删除这条随手记吗？发布前仍可刷新页面撤销。")) return;
-    setNotes((current) => current.filter((_, noteIndex) => noteIndex !== index));
+    setNotes((current) => current.filter((note) => note.id !== id));
     setDirty(true);
   };
 
@@ -305,13 +354,14 @@ export default function AdminStudio() {
     setSmartReports((current) => ({ ...current, [postId]: { ...draft, sourceName, generatedAt: Date.now() } }));
   };
 
-  const importAsSmartPost = (text, file, extras = {}) => {
+  const importAsSmartPost = (text, file, extras = {}, report = null) => {
     const draft = buildSmartDraft({ text, fileName: file.name, categories, focus: analysisFocus });
     const base = { ...emptyPost(categories, posts.length), ...extras, id: extras.id || safeArticleId() };
-    const post = postWithSmartDraft(base, draft, posts);
+    const post = postWithSmartDraft(base, draft, { rawMarkdown: text });
     setPosts((current) => [post, ...current]);
     setSelectedId(post.id);
     rememberSmartReport(post.id, draft, file.name);
+    if (report) setExtractionReports((current) => ({ ...current, [post.id]: report }));
     setDirty(true);
     return post;
   };
@@ -340,8 +390,8 @@ export default function AdminStudio() {
   const applyAllSmartSuggestions = () => {
     const report = smartReports[selectedId];
     if (!report || !selected) return;
-    if (!confirm("将用智能建议更新当前文章的标题、分类、摘要、核心观点、标签、眉题和正文结构，是否继续？")) return;
-    const updated = postWithSmartDraft(selected, report, posts);
+    if (!confirm("将用智能建议更新当前文章的标题、分类、摘要、核心观点、标签和眉题，不会改动正文。是否继续？")) return;
+    const updated = postWithSmartDraft(selected, report, { rawMarkdown: selected.rawMarkdown });
     setPosts((current) => current.map((post) => post.id === selected.id ? updated : post));
     setSelectedId(updated.id);
     setSmartReports((current) => {
@@ -379,26 +429,42 @@ export default function AdminStudio() {
         const ext = file.name.split(".").pop().toLowerCase();
         if (["md", "markdown", "txt"].includes(ext)) {
           const text = await file.text();
-          importAsSmartPost(text, file);
+          importAsSmartPost(text, file, {}, { format: ext === "txt" ? "纯文本" : "Markdown", pageCount: null, charCount: text.replace(/\s/g, "").length, lineCount: text.replace(/\r/g, "").split("\n").length, headingCount: (text.match(/^#{1,6}\s+/gm) || []).length, listCount: (text.match(/^\s*(?:-|\d+\.)\s+/gm) || []).length, tableCount: 0, warnings: [], quality: "良好" });
           notify(`已解析 ${file.name}，并自动生成文章信息`);
         } else if (ext === "docx") {
           const mammoth = await import("mammoth/mammoth.browser");
-          const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-          importAsSmartPost(result.value, file);
-          notify(`已解析 ${file.name}，并自动生成文章信息`);
+          setImportProgress(`正在还原 ${file.name} 的段落、标题和表格…`);
+          const result = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+          const converted = wordHtmlToMarkdown(result.value, result.messages);
+          if (!converted.markdown.trim()) throw new Error("没有读取到可用正文，请确认文件未加密且包含文字内容");
+          const id = safeArticleId();
+          const dataUrl = await readAsDataUrl(file); const path = `public/uploads/${id}/${file.name}`;
+          importAsSmartPost(converted.markdown, file, { id, attachments: [{ name: file.name, path: path.replace(/^public\//, ""), description: `Word 原文件 · ${humanSize(file.size)}` }] }, converted.report);
+          setPendingFiles((current) => [...current, { path, content: dataUrl.split(",")[1], encoding: "base64", name: file.name, size: file.size }]);
+          notify(`已按 Word 结构还原 ${file.name}，并保留原文件`);
+        } else if (ext === "doc") {
+          throw new Error("旧版 .doc 格式暂不支持，请在 Word 中另存为 .docx 后再上传");
         } else if (ext === "pdf") {
           const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-          pdfjs.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.worker.min.mjs";
+          pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/vendor/pdf.worker.min.mjs`;
+          setImportProgress(`正在打开 ${file.name}…`);
           const document = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
           const pages = [];
           for (let index = 1; index <= document.numPages; index += 1) {
-            const page = await document.getPage(index); const text = await page.getTextContent(); pages.push(text.items.map((item) => item.str).join(" "));
+            setImportProgress(`正在读取 ${file.name}：第 ${index} / ${document.numPages} 页`);
+            const page = await document.getPage(index);
+            const viewport = page.getViewport({ scale: 1 });
+            const pageText = await page.getTextContent();
+            pages.push({ pageNumber: index, width: viewport.width, height: viewport.height, items: pageText.items });
+            await new Promise((resolve) => window.requestAnimationFrame(resolve));
           }
+          const converted = reconstructPdfDocument(pages);
+          if (converted.report.charCount < 20) throw new Error("未检测到可用文字层，文件可能是扫描件；当前版本暂不支持 OCR，请先使用带文字层的 PDF 或转换为 Word");
           const id = safeArticleId();
           const dataUrl = await readAsDataUrl(file); const path = `public/uploads/${id}/${file.name}`;
-          importAsSmartPost(pages.join("\n\n"), file, { id, attachments: [{ name: file.name, path: path.replace(/^public\//, ""), description: `PDF · ${humanSize(file.size)}` }] });
+          importAsSmartPost(converted.markdown, file, { id, attachments: [{ name: file.name, path: path.replace(/^public\//, ""), description: `PDF 原文件 · ${humanSize(file.size)}` }] }, converted.report);
           setPendingFiles((current) => [...current, { path, content: dataUrl.split(",")[1], encoding: "base64", name: file.name, size: file.size }]);
-          notify(`已提取 ${file.name}，自动建稿并保留原 PDF`);
+          notify(`已按页面结构还原 ${file.name}，并保留原 PDF`);
         } else if (file.type.startsWith("image/")) {
           if (!selected) continue;
           const dataUrl = await readAsDataUrl(file); const path = `public/uploads/${selected.id}/${file.name}`;
@@ -411,6 +477,7 @@ export default function AdminStudio() {
           updatePost({ attachments: [...(selected.attachments || []), { name: file.name, path: path.replace(/^public\//, ""), description: `${file.type || "文件"} · ${humanSize(file.size)}` }] }); notify("附件已添加");
         }
       } catch (error) { notify(`${file.name} 导入失败：${error.message}`); }
+      finally { setImportProgress(""); }
     }
   };
 
@@ -575,6 +642,7 @@ export default function AdminStudio() {
             <div className="editor-toolbar"><div><button className={!preview ? "active" : ""} onClick={() => setPreview(false)}>编辑</button><button className={preview ? "active" : ""} onClick={() => setPreview(true)}>预览</button></div><button className="danger" onClick={removePost}><Icon name="trash" />删除</button></div>
             {preview ? <article className="article-preview"><span>{selected.eyebrow}</span><h1>{selected.title}</h1><p className="preview-lead">{selected.abstract}</p><blockquote>{selected.takeaway}</blockquote><MarkdownContent basePath={process.env.NEXT_PUBLIC_BASE_PATH || ""}>{selected.rawMarkdown}</MarkdownContent></article> : <div className="editor-form">
               <SmartDraftPanel report={smartReport} analyzing={analyzing} focus={analysisFocus} onFocusChange={setAnalysisFocus} onAnalyze={analyzeSelectedPost} onApply={applySmartSuggestion} onApplyAll={applyAllSmartSuggestions} onChooseFile={() => fileInput.current?.click()} />
+              <ExtractionReportPanel report={extractionReport} />
               <div className="form-row wide"><label>文章标题<input value={selected.title} onChange={(event) => updatePost({ title: event.target.value })} /></label></div>
               <section className="article-classification"><div><strong>文章分类</strong><small>“论文精读”等属于文章分类，会显示在知识库筛选栏；可在“分类管理”中改名和调整颜色。</small></div><div className="category-picker">{categories.map((category) => <button type="button" key={category.key} className={selected.typeKey === category.key ? `active accent-${category.accent}` : ""} onClick={() => chooseCategory(category)}>{category.label}{!category.visible && <small>已隐藏</small>}</button>)}</div></section>
               <div className="form-grid"><label>发布状态<select value={selected.status} onChange={(event) => updatePost({ status: event.target.value })}><option value="draft">草稿</option><option value="published">公开发布</option><option value="archived">归档隐藏</option></select></label><label>阅读难度<input value={selected.level || ""} onChange={(event) => updatePost({ level: event.target.value })} placeholder="例如：入门、进阶、随想" /></label><label>发布日期<input value={selected.date} onChange={(event) => updatePost({ date: event.target.value })} /></label><label>阅读时间<input value={selected.readTime} onChange={(event) => updatePost({ readTime: event.target.value })} /></label></div>
@@ -584,13 +652,18 @@ export default function AdminStudio() {
               <div className="form-grid"><label>标签<input value={(selected.tags || []).join("，")} onChange={(event) => updatePost({ tags: event.target.value.split(/[，,]/).map((item) => item.trim()).filter(Boolean) })} placeholder="学习，论文，方法" /></label><label>眉题<input value={selected.eyebrow} onChange={(event) => updatePost({ eyebrow: event.target.value })} /></label></div>
               <label>推荐引用<div className="citation-editor"><textarea rows="2" value={selected.citation || ""} onChange={(event) => updatePost({ citation: event.target.value })} /><button type="button" onClick={() => updatePost({ citation: defaultCitation(selected.title, selected.date) })}>按标题重新生成</button></div><small className="markdown-help">可以完全自由修改；智能分析和标题修改不会再覆盖你手写的引用。</small></label>
               <label>正文（支持完整 Markdown）<div className="markdown-editor-shell"><MarkdownToolbar onInsert={insertMarkdown} /><textarea ref={bodyEditor} className="body-editor" value={selected.rawMarkdown} onChange={(event) => updatePost({ rawMarkdown: event.target.value, sections: sectionsFromMarkdown(event.target.value) })} /></div><small className="markdown-help">支持 # 标题、*斜体*、**粗体**、列表、引用、链接、代码块、表格和任务清单；点击“预览”查看最终效果。</small></label>
-              <div className={`drop-zone ${dragging ? "dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); importFiles(event.dataTransfer.files); }} onClick={() => fileInput.current?.click()}><Icon name="upload" /><strong>拖入图片、PDF或其他附件</strong><span>图片会成为封面，其他文件会加入文章下载区</span></div>
+              <div className={`drop-zone ${dragging ? "dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); importFiles(event.dataTransfer.files); }} onClick={() => fileInput.current?.click()}><Icon name="upload" /><strong>{importProgress || "拖入 Word、PDF、图片或其他附件"}</strong><span>{importProgress ? "大文件会逐页处理，请不要关闭页面" : "Word/PDF 会还原正文并保留原文件；图片成为封面，其他文件加入下载区"}</span></div>
               {!!selected.attachments?.length && <div className="editor-attachments">{selected.attachments.map((item) => <div key={item.path}><Icon name="file" /><span><strong>{item.name}</strong><input className="attachment-description" value={item.description || ""} onChange={(event) => updatePost({ attachments: selected.attachments.map((attachment) => attachment.path === item.path ? { ...attachment, description: event.target.value } : attachment) })} placeholder="附件说明" /></span><span className="attachment-actions"><button type="button" onClick={() => renameAttachment(item)}>重命名</button><button type="button" onClick={() => updatePost({ attachments: selected.attachments.filter((attachment) => attachment.path !== item.path) })}>移除</button></span></div>)}</div>}
             </div>}
           </section>}
         </div>}
 
-        {tab === "notes" && <section className="settings-page"><div className="settings-heading"><span>MARGINALIA</span><h1>随手记管理</h1><p>这里对应展示站首页的“随手记”卡片，不属于文章分类，也不需要创建完整文章。</p></div><button className="add-note" type="button" onClick={addNote}><Icon name="plus" />新增随手记</button><div className="note-editor-list">{notes.map((note, index) => <article key={`${index}-${note.date}`}><header><strong>随手记 {String(index + 1).padStart(2, "0")}</strong><button type="button" onClick={() => removeNote(index)}><Icon name="trash" />删除</button></header><div className="form-grid"><label>日期<input value={note.date} onChange={(event) => updateNote(index, { date: event.target.value })} /></label><label>标签<input value={note.tag} onChange={(event) => updateNote(index, { tag: event.target.value })} /></label></div><label>内容<textarea rows="3" value={note.text} onChange={(event) => updateNote(index, { text: event.target.value })} /></label></article>)}</div></section>}
+        {tab === "notes" && <section className="settings-page notes-manager"><div className="settings-heading"><span>MARGINALIA</span><h1>随手记管理</h1><p>随时捕捉、按标签与月份查找，并决定哪些内容置顶或归档。首页只展示置顶和最近内容，完整记录在独立随手记页面。</p></div>
+          <section className="quick-note-card"><div><strong>快速记录</strong><small>系统会准确保留创建与最后修改时间</small></div><textarea rows="3" value={quickNoteText} onChange={(event) => setQuickNoteText(event.target.value)} placeholder="此刻想到什么？直接写下来……" /><div><input value={quickNoteTags} onChange={(event) => setQuickNoteTags(event.target.value)} placeholder="标签，用逗号分隔" /><button type="button" onClick={quickAddNote}><Icon name="plus" />保存随手记</button></div></section>
+          <div className="note-tools"><input value={noteQuery} onChange={(event) => setNoteQuery(event.target.value)} placeholder="搜索标题、正文或标签…" /><select value={noteTagFilter} onChange={(event) => setNoteTagFilter(event.target.value)}><option value="all">全部标签</option>{noteTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}</select><select value={noteMonthFilter} onChange={(event) => setNoteMonthFilter(event.target.value)}><option value="all">全部月份</option>{noteMonths.map((month) => <option key={month} value={month}>{month}</option>)}</select><select value={noteStatusFilter} onChange={(event) => setNoteStatusFilter(event.target.value)}><option value="active">使用中</option><option value="archived">已归档</option><option value="all">全部状态</option></select><button className="add-note" type="button" onClick={addNote}><Icon name="plus" />新建空白</button></div>
+          <p className="note-result-count">找到 {filteredNotes.length} 条随手记</p>
+          <div className="note-editor-list">{filteredNotes.map((note) => <article key={note.id} className={note.archived ? "is-archived" : ""}><header><div><strong>{note.pinned ? "📌 " : ""}{note.title || "未命名随手记"}</strong><small>创建 {formatNoteTime(note.createdAt)} · 修改 {formatNoteTime(note.updatedAt)}</small></div><button type="button" onClick={() => removeNote(note.id)}><Icon name="trash" />删除</button></header><div className="form-grid"><label>标题<input value={note.title || ""} onChange={(event) => updateNote(note.id, { title: event.target.value })} /></label><label>内容日期<input value={note.contentDate || ""} onChange={(event) => updateNote(note.id, { contentDate: event.target.value })} placeholder="YYYY.MM.DD" /></label><label>标签<input value={(note.tags || []).join("，")} onChange={(event) => updateNote(note.id, { tags: event.target.value.split(/[，,]/).map((item) => item.trim()).filter(Boolean) })} /></label><label>来源链接<input value={note.sourceUrl || ""} onChange={(event) => updateNote(note.id, { sourceUrl: event.target.value })} placeholder="可选：https://…" /></label></div><label>内容<textarea rows="5" value={note.text} onChange={(event) => updateNote(note.id, { text: event.target.value })} /></label><footer><label><input type="checkbox" checked={note.pinned} onChange={(event) => updateNote(note.id, { pinned: event.target.checked })} />置顶展示</label><label><input type="checkbox" checked={note.archived} onChange={(event) => updateNote(note.id, { archived: event.target.checked })} />归档隐藏</label><a href={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/notes/#${note.id}`} target="_blank">查看独立链接 ↗</a></footer></article>)}</div>
+        </section>}
 
         {tab === "site" && <section className="settings-page"><div className="settings-heading"><span>SITE COPY</span><h1>页面文字</h1><p>修改后可在发布前返回展示站核对整体效果。</p></div><div className="settings-card"><h2>首页首屏</h2><label>小标题<input value={site.heroEyebrow} onChange={(event) => { setSite({ ...site, heroEyebrow: event.target.value }); setDirty(true); }} /></label><div className="form-grid"><label>主标题<input value={site.heroTitle} onChange={(event) => { setSite({ ...site, heroTitle: event.target.value }); setDirty(true); }} /></label><label>强调标题<input value={site.heroEmphasis} onChange={(event) => { setSite({ ...site, heroEmphasis: event.target.value }); setDirty(true); }} /></label></div><label>介绍文字<textarea rows="4" value={site.heroDescription} onChange={(event) => { setSite({ ...site, heroDescription: event.target.value }); setDirty(true); }} /></label></div><div className="settings-card"><h2>关于我</h2><label>标题<input value={site.aboutTitle} onChange={(event) => { setSite({ ...site, aboutTitle: event.target.value }); setDirty(true); }} /></label>{site.aboutParagraphs.map((paragraph, index) => <label key={index}>第 {index + 1} 段<textarea rows="3" value={paragraph} onChange={(event) => { const values = [...site.aboutParagraphs]; values[index] = event.target.value; setSite({ ...site, aboutParagraphs: values }); setDirty(true); }} /></label>)}</div><div className="settings-card"><h2>页尾与订阅</h2><label>订阅标题<textarea rows="2" value={site.newsletterTitle} onChange={(event) => { setSite({ ...site, newsletterTitle: event.target.value }); setDirty(true); }} /></label><label>页尾句子<textarea rows="2" value={site.footerQuote} onChange={(event) => { setSite({ ...site, footerQuote: event.target.value }); setDirty(true); }} /></label></div></section>}
 
@@ -598,7 +671,7 @@ export default function AdminStudio() {
 
         {tab === "media" && <section className="settings-page"><div className="settings-heading"><span>MEDIA LIBRARY</span><h1>媒体与附件</h1><p>待发布文件会随文章一起保存到 GitHub。</p></div><div className={`media-drop ${dragging ? "dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); importFiles(event.dataTransfer.files); }} onClick={() => fileInput.current?.click()}><Icon name="upload" /><h2>把电脑里的文件拖到这里</h2><p>支持 Word、Markdown、TXT、PDF、图片及普通附件</p><button>选择文件</button></div><div className="pending-grid">{pendingFiles.map((file) => <article key={file.path}><Icon name="file" /><div><strong>{file.name}</strong><small>{humanSize(file.size)}</small></div><span>等待发布</span></article>)}</div></section>}
       </main>
-      <input ref={fileInput} type="file" multiple hidden onChange={(event) => importFiles(event.target.files)} accept=".md,.markdown,.txt,.docx,.pdf,image/*,.zip,.xlsx,.pptx" />
+      <input ref={fileInput} type="file" multiple hidden onChange={(event) => importFiles(event.target.files)} accept=".md,.markdown,.txt,.doc,.docx,.pdf,image/*,.zip,.xlsx,.pptx" />
       {loginOpen && <div className="github-auth-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !authenticating) setLoginOpen(false); }}>
         <form className="github-auth-dialog" onSubmit={authenticateGitHub}>
           <span>GITHUB CONNECTION</span>
