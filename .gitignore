@@ -9,3 +9,4 @@ next-env.d.ts
 !.env.example
 muyin-blog/
 墨痕博客-建站指令.md
+public/vendor/pdf.worker.min.mjs

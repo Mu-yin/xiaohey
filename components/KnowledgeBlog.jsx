@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Giscus from "@giscus/react";
 import { entries as allEntries, filters, notes, siteConfig } from "@/data/content";
+import { noteTimestamp } from "@/lib/notes.mjs";
 import MarkdownContent from "@/components/MarkdownContent";
 
 const entries = allEntries.filter((entry) => entry.status === "published");
 const articleUrl = (entry) => `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/read/?id=${encodeURIComponent(entry.id)}`;
+const notesUrl = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/notes/`;
+const homepageNotes = [...notes.filter((note) => !note.archived)].sort((a, b) => Number(b.pinned) - Number(a.pinned) || noteTimestamp(b) - noteTimestamp(a)).slice(0, 6);
 const assetUrl = (value = "") => {
   if (!value || /^https?:\/\//.test(value)) return value;
   const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -284,7 +287,7 @@ export default function KnowledgeBlog() {
           <nav className={`main-nav ${menuOpen ? "is-open" : ""}`} aria-label="主导航">
             <a href="#library" onClick={() => setMenuOpen(false)}>知识库</a>
             <a href="#papers" onClick={() => setMenuOpen(false)}>本期精选</a>
-            <a href="#notes" onClick={() => setMenuOpen(false)}>随手记</a>
+            <a href={notesUrl} onClick={() => setMenuOpen(false)}>随手记</a>
             <a href="#about" onClick={() => setMenuOpen(false)}>关于</a>
           </nav>
           <div className="header-actions">
@@ -361,14 +364,14 @@ export default function KnowledgeBlog() {
         <section className="notes-section" id="notes">
           <div className="section-heading inverse">
             <div><span className="section-index">03</span><h2>随手记</h2></div>
-            <span className="rule-label">MARGINALIA</span>
+            <a className="notes-view-all" href={notesUrl}>查看全部与检索 →</a>
           </div>
           <div className="notes-grid">
-            {notes.map((note, index) => (
-              <article key={note.date}>
-                <header><time>{note.date}</time><span>0{index + 1}</span></header>
-                <p>“{note.text}”</p>
-                <footer><span>#{note.tag}</span><i /></footer>
+            {homepageNotes.map((note, index) => (
+              <article key={note.id} className={note.pinned ? "is-pinned" : ""}>
+                <header><time>{note.contentDate}</time><span>{note.pinned ? "PIN" : String(index + 1).padStart(2, "0")}</span></header>
+                <a className="note-home-link" href={`${notesUrl}#${note.id}`}><strong>{note.title}</strong><p>“{note.text}”</p></a>
+                <footer><span>{(note.tags || []).map((tag) => `#${tag}`).join(" · ") || "#未分类"}</span><i /></footer>
               </article>
             ))}
           </div>

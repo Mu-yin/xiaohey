@@ -1,8 +1,16 @@
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { normalizeNotes } from "../lib/notes.mjs";
 
 const root = process.cwd();
 const contentRoot = path.join(root, "content");
+
+const vendorRoot = path.join(root, "public", "vendor");
+await mkdir(vendorRoot, { recursive: true });
+await copyFile(
+  path.join(root, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.min.mjs"),
+  path.join(vendorRoot, "pdf.worker.min.mjs"),
+);
 
 const readJson = async (name) => JSON.parse(await readFile(path.join(contentRoot, name), "utf8"));
 
@@ -55,7 +63,7 @@ const filters = [
 const output = `// 此文件由 scripts/generate-content.mjs 自动生成，请编辑 content/ 目录。\n${[
   ["siteConfig", siteConfig],
   ["categories", categories],
-  ["notes", notes],
+  ["notes", normalizeNotes(notes)],
   ["entries", entries],
   ["filters", filters],
 ].map(([name, value]) => `export const ${name} = ${JSON.stringify(value, null, 2)};`).join("\n\n")}\n`;

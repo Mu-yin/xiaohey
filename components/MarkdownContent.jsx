@@ -1,6 +1,28 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+function remarkPreserveLineBreaks() {
+  return (tree) => {
+    const visit = (node) => {
+      if (!Array.isArray(node.children)) return;
+      const children = [];
+      for (const child of node.children) {
+        if (child.type === "text" && child.value.includes("\n")) {
+          child.value.split("\n").forEach((part, index, parts) => {
+            if (part) children.push({ type: "text", value: part });
+            if (index < parts.length - 1) children.push({ type: "break" });
+          });
+        } else {
+          visit(child);
+          children.push(child);
+        }
+      }
+      node.children = children;
+    };
+    visit(tree);
+  };
+}
+
 const plainText = (children) => Array.isArray(children) ? children.map(plainText).join("") : String(children ?? "");
 const headingId = (children) => `md-${plainText(children).toLowerCase().trim().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-").replace(/^-|-$/g, "")}`;
 const assetUrl = (value = "", basePath = "") => !value || /^(https?:|data:|blob:|#)/.test(value) ? value : `${basePath}/${value.replace(/^\.?\//, "")}`;
@@ -15,7 +37,7 @@ export function extractMarkdownHeadings(markdown = "") {
 export default function MarkdownContent({ children = "", className = "", basePath = "" }) {
   return <div className={`markdown-content ${className}`.trim()}>
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkPreserveLineBreaks]}
       components={{
         h1: ({ children: value, ...props }) => <h1 id={headingId(value)} {...props}>{value}</h1>,
         h2: ({ children: value, ...props }) => <h2 id={headingId(value)} {...props}>{value}</h2>,
